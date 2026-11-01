@@ -1,0 +1,6 @@
+{
+  "name": "سياقتي فوكاب - اختبار ومصطلحات رخصة السياقة",
+  "description": "تطبيق تفاعلي لاختبارات ومصطلحات رخصة السياقة المغربية (بيرمي صنف ب) مع شروحات مفصلة، تتبع التقدم، ومعجم مصطلحات السير بالدارجة والعربية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

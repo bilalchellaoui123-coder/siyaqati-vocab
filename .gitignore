@@ -8,3 +8,5 @@ coverage/
 !.env.example
 .playwright-cli/
 *.tmp
+*.tar.gz
+*.zip

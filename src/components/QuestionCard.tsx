@@ -9,7 +9,8 @@ import { SceneIllustration } from './SceneIllustration';
 import { RousseauConsole } from './RousseauConsole';
 import { VOCABULARY_LIST } from '../data/vocabulary';
 import { Volume2, BookOpen, CheckCircle2, XCircle, Bookmark, Star, HelpCircle } from 'lucide-react';
-import { soundManager, speakArabic } from '../utils/sound';
+import { soundManager, speakArabic, speakArabicSegments } from '../utils/sound';
+import { buildQuestionSpeechSegments, buildSingleOptionSpeech } from '../utils/speechFormatter';
 
 interface QuestionCardProps {
   question: QuizQuestion;
@@ -54,6 +55,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [playingOptionId, setPlayingOptionId] = useState<number | null>(null);
+  const [speechRate, setSpeechRate] = useState<number>(() => soundManager.getSpeechRate());
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(() => {
     try {
       return localStorage.getItem('siyaqati_autoplay') === 'true';
@@ -78,32 +80,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     };
   }, [question.id]);
 
-  const numberToArabicWord = (n: number): string => {
-    switch (n) {
-      case 1:
-        return 'واحد';
-      case 2:
-        return 'اثنان';
-      case 3:
-        return 'ثلاثة';
-      case 4:
-        return 'أربعة';
-      default:
-        return `${n}`;
-    }
-  };
-
   const handleSpeakQuestion = () => {
     if (isPlayingAudio) {
       soundManager.stopSpeaking();
     } else {
-      setPlayingOptionId(null);
-      // Announce question prompt and all options in Arabic like official exam audio
-      const optionsAnnouncement = question.options
-        .map((opt) => `الجواب رقم ${numberToArabicWord(opt.id)}: ${opt.text}`)
-        .join('. ');
-      const speechText = `${question.questionText}. ${optionsAnnouncement}.`;
-      speakArabic(speechText);
+      const segments = buildQuestionSpeechSegments(question);
+      speakArabicSegments(segments, (activeOptId) => {
+        setPlayingOptionId(activeOptId);
+      });
     }
   };
 
@@ -111,12 +95,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   useEffect(() => {
     if (!autoPlayAudio || hasValidated) return;
     const timer = setTimeout(() => {
-      const optionsAnnouncement = question.options
-        .map((opt) => `الجواب رقم ${numberToArabicWord(opt.id)}: ${opt.text}`)
-        .join('. ');
-      const speechText = `${question.questionText}. ${optionsAnnouncement}.`;
-      speakArabic(speechText);
-    }, 450);
+      const segments = buildQuestionSpeechSegments(question);
+      speakArabicSegments(segments, (activeOptId) => {
+        setPlayingOptionId(activeOptId);
+      });
+    }, 350);
 
     return () => {
       clearTimeout(timer);
@@ -128,7 +111,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     e.stopPropagation();
     soundManager.stopSpeaking();
     setPlayingOptionId(optId);
-    speakArabic(`الجواب رقم ${numberToArabicWord(optId)}: ${optText}.`);
+    speakArabic(buildSingleOptionSpeech(optId, optText));
   };
 
   const toggleAutoPlay = () => {
@@ -141,6 +124,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     if (!nextVal) {
       soundManager.stopSpeaking();
     }
+  };
+
+  const cycleSpeechRate = () => {
+    const rates = [0.85, 1, 1.15];
+    const nextIdx = (rates.indexOf(speechRate) + 1) % rates.length;
+    const nextRate = rates[nextIdx];
+    soundManager.playClick();
+    soundManager.setSpeechRate(nextRate);
+    setSpeechRate(nextRate);
   };
 
   return (
@@ -161,6 +153,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Speech Speed Control */}
+          <button
+            onClick={cycleSpeechRate}
+            className="min-h-[34px] px-2 rounded-lg sm:rounded-xl text-[11px] font-bold bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-amber-300 border border-slate-700 transition-colors tabular-nums"
+            title="سرعة القراءة الصوتية"
+            aria-label="تغيير سرعة القراءة الصوتية"
+          >
+            {speechRate === 1 ? '1×' : `${speechRate}×`}
+          </button>
+
           {/* Auto-play toggle button */}
           <button
             onClick={toggleAutoPlay}
@@ -295,7 +297,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     onToggleAnswer(opt.id);
                   }
                 }}
-                className={`w-full px-3 py-2.5 sm:p-4 min-h-[48px] rounded-xl border-2 text-right font-bold text-sm sm:text-base flex items-center justify-between gap-2 sm:gap-3 transition-all cursor-pointer active:scale-[0.99] select-none ${optionStyle}`}
+                className={`w-full px-3 py-2.5 sm:p-4 min-h-[48px] rounded-xl border-2 text-right font-bold text-sm sm:text-base flex items-center justify-between gap-2 sm:gap-3 transition-all cursor-pointer active:scale-[0.99] select-none ${optionStyle} ${
+                  playingOptionId === opt.id ? 'ring-2 ring-amber-400/80 border-amber-400/80' : ''
+                }`}
               >
                 <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                   <span

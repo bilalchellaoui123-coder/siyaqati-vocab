@@ -3,34 +3,77 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { cleanArabicForSpeech, SpeechSegment } from './speechFormatter';
+
 // 1-sample silent WAV used to unlock HTMLAudioElement on iOS Safari & Android Chrome
 const SILENT_WAV_DATA_URI =
   'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 
-// Synthesized sound effects + mobile-resilient Arabic speech player
+const RATE_STORAGE_KEY = 'siyaqati_speech_rate';
+
+interface CachedClientAudio {
+  buffer: ArrayBuffer;
+  mimeType: string;
+}
+
+// Synthesized sound effects + mobile-resilient fluent Arabic speech player
 class SoundEffects {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
+  private speechRate: number = 1.0;
   private persistentAudio: HTMLAudioElement | null = null;
   private activeSourceNode: AudioBufferSourceNode | null = null;
   private activeUtterance: SpeechSynthesisUtterance | null = null;
-  private activeFetchController: AbortController | null = null;
+  private activeFetchControllers: Set<AbortController> = new Set();
   private currentBlobUrl: string | null = null;
   private audioUnlocked: boolean = false;
   private isCurrentlySpeaking: boolean = false;
   private speechRequestId: number = 0;
   private speechChunkTimer: ReturnType<typeof setTimeout> | null = null;
+  private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private speakingListeners: Set<(speaking: boolean) => void> = new Set();
-  private audioBufferCache: Map<string, ArrayBuffer> = new Map();
+  private audioBufferCache: Map<string, CachedClientAudio> = new Map();
 
   constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        const savedRate = parseFloat(localStorage.getItem(RATE_STORAGE_KEY) || '1');
+        if ([0.85, 1, 1.15].includes(savedRate)) {
+          this.speechRate = savedRate;
+        }
+      } catch {
+        // Ignore storage errors
+      }
+
       const unlockHandler = () => {
         this.unlockAudioSync();
       };
       window.addEventListener('touchstart', unlockHandler, { capture: true, passive: true });
       window.addEventListener('pointerdown', unlockHandler, { capture: true, passive: true });
       window.addEventListener('click', unlockHandler, { capture: true, passive: true });
+    }
+  }
+
+  public getSpeechRate(): number {
+    return this.speechRate;
+  }
+
+  public setSpeechRate(rate: number): void {
+    this.speechRate = rate;
+    if (this.persistentAudio) {
+      this.persistentAudio.playbackRate = rate;
+    }
+    if (this.activeSourceNode) {
+      try {
+        this.activeSourceNode.playbackRate.value = rate;
+      } catch {
+        // Ignore
+      }
+    }
+    try {
+      localStorage.setItem(RATE_STORAGE_KEY, String(rate));
+    } catch {
+      // Ignore
     }
   }
 
@@ -68,7 +111,6 @@ class SoundEffects {
   public unlockAudioSync(): void {
     if (typeof window === 'undefined') return;
 
-    // Tell iOS 16.4+ to play audio even when the hardware Silent/Ring switch is on
     try {
       const nav = navigator as unknown as { audioSession?: { type: string } };
       if (nav.audioSession && nav.audioSession.type !== 'playback') {
@@ -84,7 +126,6 @@ class SoundEffects {
         if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
         }
-        // Play a 1-sample silent buffer to unlock iOS Web Audio
         const silentBuffer = ctx.createBuffer(1, 1, 22050);
         const source = ctx.createBufferSource();
         source.buffer = silentBuffer;
@@ -105,7 +146,6 @@ class SoundEffects {
             playPromise
               .then(() => {
                 this.audioUnlocked = true;
-                // Only pause if nothing else replaced src in the meantime
                 if (audio.src === SILENT_WAV_DATA_URI) {
                   audio.pause();
                 }
@@ -165,14 +205,19 @@ class SoundEffects {
       this.speechChunkTimer = null;
     }
 
-    if (this.activeFetchController) {
+    if (this.pauseTimer) {
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = null;
+    }
+
+    this.activeFetchControllers.forEach((controller) => {
       try {
-        this.activeFetchController.abort();
+        controller.abort();
       } catch {
         // Safe ignore
       }
-      this.activeFetchController = null;
-    }
+    });
+    this.activeFetchControllers.clear();
 
     if (this.persistentAudio) {
       try {
@@ -312,80 +357,101 @@ class SoundEffects {
   }
 
   /**
-   * Mobile-resilient Arabic Speech Player:
-   * 1. Synchronously unlocks iOS/Android audio during the tap gesture
-   * 2. Fetches & caches MP3 from /api/tts and plays via unlocked HTMLAudioElement or Web Audio API
-   * 3. Falls back to mobile-safe chunked Arabic Web Speech API if offline or backend unavailable
+   * Speak a single Arabic text string fluently
    */
   public async speak(text: string): Promise<void> {
-    if (this.isMuted || !text.trim()) return;
+    const clean = cleanArabicForSpeech(text);
+    if (!clean) return;
+    await this.speakSegments([{ text: clean, optionId: null, pauseAfterMs: 0 }]);
+  }
 
-    // Unlock audio synchronously inside user gesture before any await
+  /**
+   * Fluent sequential speech engine:
+   * - Unlocks mobile audio synchronously
+   * - Pre-fetches upcoming segments in parallel while the current one plays
+   * - Emits live option highlighting via onStepChange
+   * - Plays natural pauses between question and numbered responses
+   */
+  public async speakSegments(
+    segments: SpeechSegment[],
+    onStepChange?: (optionId: number | null) => void
+  ): Promise<void> {
+    if (this.isMuted || segments.length === 0) return;
+
     this.unlockAudioSync();
-
-    // Cancel previous playback and claim a fresh request token
     this.stopSpeaking();
     const requestId = ++this.speechRequestId;
     this.setSpeaking(true);
 
-    const cleanText = text
-      .replace(/[1-4]\s*\.{2,}/g, '')
-      .replace(/[1-4]\s*-\s*/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Pre-fetch all segments in parallel (capped cleanly by browser connection pool)
+    const fetchPromises = segments.map((seg) =>
+      this.fetchTtsAudioBuffer(seg.text, requestId)
+    );
 
-    if (!cleanText) {
+    try {
+      for (let i = 0; i < segments.length; i++) {
+        if (this.speechRequestId !== requestId) return;
+        const seg = segments[i];
+        onStepChange?.(seg.optionId);
+
+        const cachedAudio = await fetchPromises[i];
+        if (this.speechRequestId !== requestId) return;
+
+        let played = false;
+        if (cachedAudio) {
+          played = await this.playWithAudioElement(cachedAudio, requestId);
+          if (this.speechRequestId !== requestId) return;
+
+          if (!played) {
+            played = await this.playWithAudioContext(cachedAudio, requestId);
+            if (this.speechRequestId !== requestId) return;
+          }
+        }
+
+        if (!played) {
+          await this.playWebSpeech(seg.text, requestId);
+          if (this.speechRequestId !== requestId) return;
+        }
+
+        if (seg.pauseAfterMs && seg.pauseAfterMs > 0 && i < segments.length - 1) {
+          await new Promise<void>((resolve) => {
+            this.pauseTimer = setTimeout(() => {
+              this.pauseTimer = null;
+              resolve();
+            }, seg.pauseAfterMs);
+          });
+        }
+      }
+    } finally {
       if (this.speechRequestId === requestId) {
+        onStepChange?.(null);
         this.setSpeaking(false);
       }
-      return;
-    }
-
-    // Strategy 1: Fetch natural Arabic MP3 audio from /api/tts (with client cache)
-    const audioBuffer = await this.fetchTtsAudioBuffer(cleanText, requestId);
-    if (this.speechRequestId !== requestId) return;
-
-    if (audioBuffer) {
-      // Try persistent unlocked HTMLAudioElement first (works even with iPhone Silent switch on)
-      const playedElement = await this.playWithAudioElement(audioBuffer, requestId);
-      if (this.speechRequestId !== requestId) return;
-      if (playedElement) {
-        this.setSpeaking(false);
-        return;
-      }
-
-      // Fallback to Web Audio API decodeAudioData (works reliably in auto-play / setTimeout)
-      const playedCtx = await this.playWithAudioContext(audioBuffer, requestId);
-      if (this.speechRequestId !== requestId) return;
-      if (playedCtx) {
-        this.setSpeaking(false);
-        return;
-      }
-    }
-
-    // Strategy 2: Native Arabic Web Speech Synthesis fallback (chunked for mobile Chrome & iOS)
-    await this.playWebSpeech(cleanText, requestId);
-    if (this.speechRequestId === requestId) {
-      this.setSpeaking(false);
     }
   }
 
-  private async fetchTtsAudioBuffer(text: string, requestId: number): Promise<ArrayBuffer | null> {
-    const cacheKey = text.toLowerCase();
+  private async fetchTtsAudioBuffer(
+    text: string,
+    requestId: number
+  ): Promise<CachedClientAudio | null> {
+    const cleanText = text.trim();
+    if (!cleanText) return null;
+
+    const cacheKey = cleanText.toLowerCase();
     const cached = this.audioBufferCache.get(cacheKey);
-    if (cached && cached.byteLength > 0) {
+    if (cached && cached.buffer.byteLength > 0) {
       return cached;
     }
 
     const controller = new AbortController();
-    this.activeFetchController = controller;
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    this.activeFetchControllers.add(controller);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
 
     try {
-      const url = `/api/tts?text=${encodeURIComponent(text)}`;
+      const url = `/api/tts?text=${encodeURIComponent(cleanText)}`;
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { Accept: 'audio/mpeg, audio/*' },
+        headers: { Accept: 'audio/wav, audio/mpeg, audio/*' },
       });
 
       if (this.speechRequestId !== requestId) return null;
@@ -400,23 +466,26 @@ class SoundEffects {
         return null;
       }
 
-      if (this.audioBufferCache.size > 60) {
+      const entry: CachedClientAudio = {
+        buffer,
+        mimeType: contentType.split(';')[0].trim() || 'audio/mpeg',
+      };
+
+      if (this.audioBufferCache.size > 100) {
         const firstKey = this.audioBufferCache.keys().next().value;
         if (firstKey) this.audioBufferCache.delete(firstKey);
       }
-      this.audioBufferCache.set(cacheKey, buffer);
-      return buffer;
+      this.audioBufferCache.set(cacheKey, entry);
+      return entry;
     } catch {
       return null;
     } finally {
       clearTimeout(timeoutId);
-      if (this.activeFetchController === controller) {
-        this.activeFetchController = null;
-      }
+      this.activeFetchControllers.delete(controller);
     }
   }
 
-  private playWithAudioElement(arrayBuffer: ArrayBuffer, requestId: number): Promise<boolean> {
+  private playWithAudioElement(audioData: CachedClientAudio, requestId: number): Promise<boolean> {
     return new Promise((resolve) => {
       const audio = this.getPersistentAudio();
       if (!audio) {
@@ -453,17 +522,17 @@ class SoundEffects {
           this.currentBlobUrl = null;
         }
 
-        const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+        const blob = new Blob([audioData.buffer], { type: audioData.mimeType });
         const blobUrl = URL.createObjectURL(blob);
         this.currentBlobUrl = blobUrl;
 
-        // Safety watchdog in case mobile browser drops onended
         watchdogTimer = setTimeout(() => cleanup(false), 60000);
 
         audio.onended = () => cleanup(true);
         audio.onerror = () => cleanup(false);
 
         audio.src = blobUrl;
+        audio.playbackRate = this.speechRate;
         audio.load();
 
         const playPromise = audio.play();
@@ -475,6 +544,7 @@ class SoundEffects {
                 cleanup(false);
               } else {
                 this.audioUnlocked = true;
+                audio.playbackRate = this.speechRate;
               }
             })
             .catch(() => {
@@ -487,7 +557,10 @@ class SoundEffects {
     });
   }
 
-  private async playWithAudioContext(arrayBuffer: ArrayBuffer, requestId: number): Promise<boolean> {
+  private async playWithAudioContext(
+    audioData: CachedClientAudio,
+    requestId: number
+  ): Promise<boolean> {
     const ctx = this.getContext();
     if (!ctx) return false;
 
@@ -497,13 +570,13 @@ class SoundEffects {
       }
       if (this.speechRequestId !== requestId) return false;
 
-      // Always pass a copy so the cached ArrayBuffer is never detached
-      const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      const decodedBuffer = await ctx.decodeAudioData(audioData.buffer.slice(0));
       if (this.speechRequestId !== requestId) return false;
 
       return await new Promise<boolean>((resolve) => {
         const source = ctx.createBufferSource();
         source.buffer = decodedBuffer;
+        source.playbackRate.value = this.speechRate;
         source.connect(ctx.destination);
         this.activeSourceNode = source;
 
@@ -514,7 +587,7 @@ class SoundEffects {
             }
             resolve(true);
           },
-          Math.ceil(decodedBuffer.duration * 1000) + 1000
+          Math.ceil((decodedBuffer.duration / this.speechRate) * 1000) + 1000
         );
 
         source.onended = () => {
@@ -534,7 +607,7 @@ class SoundEffects {
 
   private splitArabicForSpeech(text: string, maxLength = 130): string[] {
     const segments = text
-      .replace(/([.?!؛،:\n])/g, '$1|')
+      .replace(/([.?!؟؛،:\n])/g, '$1|')
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
@@ -590,7 +663,6 @@ class SoundEffects {
     let match = findArabic(voices);
     if (match || voices.length > 0) return match;
 
-    // Mobile Chrome & Safari populate voices asynchronously
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         window.speechSynthesis.removeEventListener?.('voiceschanged', onVoices);
@@ -619,7 +691,6 @@ class SoundEffects {
       const synth = window.speechSynthesis;
       if (synth.speaking || synth.pending) {
         synth.cancel();
-        // iOS Safari needs a short pause after cancel() before speaking a new utterance
         await new Promise((r) => setTimeout(r, 70));
       }
       if (this.speechRequestId !== requestId) return false;
@@ -635,13 +706,11 @@ class SoundEffects {
         await new Promise<void>((resolve) => {
           const utterance = new SpeechSynthesisUtterance(chunk);
           utterance.lang = arabicVoice?.lang || 'ar-SA';
-          utterance.rate = 0.92;
-          // NEVER assign a French or English voice to Arabic text
+          utterance.rate = Math.min(1.25, Math.max(0.8, 0.94 * this.speechRate));
           if (arabicVoice) {
             utterance.voice = arabicVoice;
           }
 
-          // Retain utterance reference so mobile browsers don't GC it mid-speech
           this.activeUtterance = utterance;
 
           let done = false;
@@ -661,7 +730,6 @@ class SoundEffects {
           utterance.onend = finish;
           utterance.onerror = finish;
 
-          // Safety timer if Android WebView misses onend
           this.speechChunkTimer = setTimeout(finish, Math.max(4500, chunk.length * 160));
           synth.speak(utterance);
         });
@@ -678,4 +746,11 @@ export const soundManager = new SoundEffects();
 
 export function speakArabic(text: string): Promise<void> {
   return soundManager.speak(text);
+}
+
+export function speakArabicSegments(
+  segments: SpeechSegment[],
+  onStepChange?: (optionId: number | null) => void
+): Promise<void> {
+  return soundManager.speakSegments(segments, onStepChange);
 }

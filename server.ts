@@ -64,27 +64,71 @@ function splitTextIntoChunks(text: string, maxLength = 150): string[] {
 }
 
 /**
- * Fetch TTS audio chunk in Arabic
+ * Fetch TTS audio chunk in Arabic with client fallback
  */
 async function fetchAudioChunk(chunkText: string): Promise<Buffer> {
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ar&q=${encodeURIComponent(
-    chunkText
-  )}`;
+  const clients = ['tw-ob', 'gtx'];
+  let lastError: Error | null = null;
 
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Referer: 'https://translate.google.com/',
-    },
-  });
+  for (const client of clients) {
+    try {
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=${client}&tl=ar&q=${encodeURIComponent(
+        chunkText
+      )}`;
 
-  if (!response.ok) {
-    throw new Error(`TTS upstream error: ${response.status}`);
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: 'https://translate.google.com/',
+        },
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`TTS upstream error (${client}): ${response.status}`);
+        continue;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > 0) {
+        return Buffer.from(arrayBuffer);
+      }
+      lastError = new Error(`TTS upstream returned empty audio (${client})`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  throw lastError || new Error('Failed to fetch TTS audio chunk');
+}
+
+function sendAudioResponse(req: Request, res: Response, audioBuffer: Buffer) {
+  const totalLength = audioBuffer.length;
+  const rangeHeader = req.headers.range;
+
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
+  if (rangeHeader) {
+    const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+    if (match) {
+      const start = match[1] ? parseInt(match[1], 10) : 0;
+      const end = match[2] ? Math.min(parseInt(match[2], 10), totalLength - 1) : totalLength - 1;
+
+      if (start >= 0 && start < totalLength && end >= start) {
+        const chunk = audioBuffer.subarray(start, end + 1);
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${totalLength}`);
+        res.setHeader('Content-Length', chunk.length);
+        return res.end(chunk);
+      }
+    }
+  }
+
+  res.status(200);
+  res.setHeader('Content-Length', totalLength);
+  return res.end(audioBuffer);
 }
 
 // Endpoint: GET /api/tts?text=...
@@ -105,10 +149,7 @@ app.get('/api/tts', async (req: Request, res: Response) => {
   const cacheKey = cleanText.toLowerCase();
   if (ttsCache.has(cacheKey)) {
     const cachedBuffer = ttsCache.get(cacheKey)!;
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Content-Length', cachedBuffer.length);
-    return res.end(cachedBuffer);
+    return sendAudioResponse(req, res, cachedBuffer);
   }
 
   try {
@@ -130,10 +171,7 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     }
     ttsCache.set(cacheKey, finalAudio);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Content-Length', finalAudio.length);
-    return res.end(finalAudio);
+    return sendAudioResponse(req, res, finalAudio);
   } catch (error) {
     console.error('Error generating Arabic speech:', error);
     return res.status(500).json({ error: 'Failed to generate speech audio' });

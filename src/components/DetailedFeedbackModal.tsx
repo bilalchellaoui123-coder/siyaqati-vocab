@@ -119,9 +119,20 @@ export const DetailedFeedbackModal: React.FC<DetailedFeedbackModalProps> = ({
 
           {/* Section: Why the correct answer was chosen */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-              <BookOpen className="w-4 h-4" />
-              <h4>لماذا تم اختيار هذا الجواب؟ (الشرح والتعليل)</h4>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <BookOpen className="w-4 h-4" />
+                <h4>لماذا تم اختيار هذا الجواب؟ (الشرح والتعليل)</h4>
+              </div>
+              <button
+                onClick={() => handleSpeak(`${question.explanation}. ${question.legalRule}`)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition"
+                title="استمع للشرح والقاعدة بالعربية"
+                aria-label="استمع للشرح والقاعدة بالعربية"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>استمع للشرح</span>
+              </button>
             </div>
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-100 text-sm leading-relaxed">
               {question.explanation}

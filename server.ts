@@ -5,9 +5,23 @@
 
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import fs from 'fs';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+
+const TTS_DISK_CACHE_DIR = '/tmp/siyaqati-tts-cache';
+try {
+  fs.mkdirSync(TTS_DISK_CACHE_DIR, { recursive: true });
+} catch {
+  // Ignore if /tmp is unavailable
+}
+
+function getDiskCachePath(cacheKey: string): string {
+  const hash = crypto.createHash('sha256').update(cacheKey).digest('hex');
+  return path.join(TTS_DISK_CACHE_DIR, `${hash}.wav`);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,8 +220,7 @@ function sendAudioResponse(
   res: Response,
   audioBuffer: Buffer,
   mimeType: string,
-  engine: 'gemini' | 'fallback' = 'gemini',
-  fallbackReason?: string
+  engine: 'gemini' | 'fallback' = 'gemini'
 ) {
   const totalLength = audioBuffer.length;
   const rangeHeader = req.headers.range;
@@ -215,9 +228,6 @@ function sendAudioResponse(
   res.setHeader('Content-Type', mimeType);
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('X-TTS-Engine', engine);
-  if (fallbackReason) {
-    res.setHeader('X-TTS-Fallback-Reason', fallbackReason.replace(/[\r\n]/g, ' '));
-  }
   res.setHeader(
     'Cache-Control',
     engine === 'gemini' ? 'public, max-age=86400' : 'no-store'
@@ -258,24 +268,34 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Check Gemini cache
+  // Check Gemini in-memory & disk cache
   const cacheKey = cleanText.toLowerCase();
   if (ttsCache.has(cacheKey)) {
     const cached = ttsCache.get(cacheKey)!;
     return sendAudioResponse(req, res, cached.buffer, cached.mimeType, cached.engine);
   }
 
+  const diskPath = getDiskCachePath(cacheKey);
+  try {
+    if (fs.existsSync(diskPath)) {
+      const diskBuf = fs.readFileSync(diskPath);
+      if (diskBuf.length > 44) {
+        const cached: CachedAudio = { buffer: diskBuf, mimeType: 'audio/wav', engine: 'gemini' };
+        ttsCache.set(cacheKey, cached);
+        return sendAudioResponse(req, res, cached.buffer, cached.mimeType, 'gemini');
+      }
+    }
+  } catch {
+    // Ignore disk cache read error
+  }
+
   try {
     let generationPromise = inFlightTts.get(cacheKey);
-    let fallbackReason: string | undefined;
     if (!generationPromise) {
       generationPromise = (async () => {
         // 1. Try Gemini 3.8 Flash Lite TTS for ultra-fluent natural Arabic voice
         const geminiAttempt = await generateGeminiTts(cleanText);
         let result = geminiAttempt.audio;
-        if (!result) {
-          fallbackReason = geminiAttempt.errorReason;
-        }
 
         // 2. Fallback to standard Arabic TTS stream (do NOT cache in ttsCache so Gemini can recover)
         if (!result) {
@@ -294,12 +314,17 @@ app.get('/api/tts', async (req: Request, res: Response) => {
             engine: 'fallback',
           };
         } else {
-          // Cache only high-quality Gemini TTS audio in memory (keep max 300 items)
+          // Cache only high-quality Gemini TTS audio in memory & disk
           if (ttsCache.size > 300) {
             const firstKey = ttsCache.keys().next().value;
             if (firstKey) ttsCache.delete(firstKey);
           }
           ttsCache.set(cacheKey, result);
+          try {
+            fs.writeFileSync(diskPath, result.buffer);
+          } catch {
+            // Ignore disk write error
+          }
         }
 
         return result;
@@ -311,14 +336,7 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     }
 
     const result = await generationPromise;
-    return sendAudioResponse(
-      req,
-      res,
-      result.buffer,
-      result.mimeType,
-      result.engine,
-      fallbackReason
-    );
+    return sendAudioResponse(req, res, result.buffer, result.mimeType, result.engine);
   } catch (error) {
     console.error('Error generating Arabic speech:', error);
     return res.status(500).json({ error: 'Failed to generate speech audio' });

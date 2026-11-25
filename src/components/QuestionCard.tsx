@@ -10,6 +10,7 @@ import { RousseauConsole } from './RousseauConsole';
 import { VOCABULARY_LIST } from '../data/vocabulary';
 import { Volume2, BookOpen, CheckCircle2, XCircle, Bookmark, Star, HelpCircle } from 'lucide-react';
 import { soundManager, speakArabic, speakArabicSegments } from '../utils/sound';
+import { evaluateAnswer } from '../utils/quizEngine';
 import {
   buildQuestionSpeechSegments,
   buildSingleOptionSpeech,
@@ -111,33 +112,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     };
   }, [question.id, autoPlayAudio]);
 
-  // Pre-warm unified question audio when a new question loads (if auto-play isn't already fetching it)
-  useEffect(() => {
-    if (hasValidated || autoPlayAudio) return;
-    const timer = setTimeout(() => {
-      const questionSegments = buildQuestionSpeechSegments(question);
-      if (questionSegments[0]) {
-        soundManager.prefetchTexts([questionSegments[0].text]);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [question.id, autoPlayAudio, hasValidated]);
-
-  // Pre-warm validation answer & explanation audio once the user selects an option
+  // Pre-warm only the predicted validation outcome once the user finishes choosing an option
   useEffect(() => {
     if (hasValidated || selectedAnswers.length === 0) return;
     const timer = setTimeout(() => {
-      const rightSegments = buildValidationFeedbackSegments(question, true);
-      const wrongSegments = buildValidationFeedbackSegments(question, false);
-      soundManager.prefetchTexts([
-        ...rightSegments.map((s) => s.text),
-        ...wrongSegments.map((s) => s.text),
-      ]);
-    }, 150);
+      const predictedCorrect = evaluateAnswer(selectedAnswers, question.correctAnswers);
+      const predictedSegments = buildValidationFeedbackSegments(question, predictedCorrect);
+      soundManager.prefetchTexts(predictedSegments.map((s) => s.text));
+    }, 450);
 
     return () => clearTimeout(timer);
-  }, [question.id, hasValidated, selectedAnswers.length > 0]);
+  }, [question.id, hasValidated, selectedAnswers]);
 
   const handleSpeakSingleOption = (optId: number, optText: string, e: React.MouseEvent) => {
     e.stopPropagation();

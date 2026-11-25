@@ -380,8 +380,8 @@ class SoundEffects {
   ): Promise<void> {
     if (this.isMuted || segments.length === 0) return;
 
-    this.unlockAudioSync();
     this.stopSpeaking();
+    this.unlockAudioSync();
     const requestId = ++this.speechRequestId;
     this.setSpeaking(true);
 
@@ -442,29 +442,45 @@ class SoundEffects {
     }
   }
 
+  private pendingPrefetchQueue: string[] = [];
+  private isPrefetchWorkerRunning: boolean = false;
+
   /**
-   * Silently pre-warm TTS audio buffers in background with low concurrency (2)
-   * so clicking Valider or Listen starts immediately with zero wait.
+   * Silently pre-warm TTS audio buffers in background (priority LIFO-friendly queue)
+   * so clicking Listen or Valider plays immediately with zero wait.
    */
   public prefetchTexts(texts: string[]): void {
     if (this.isMuted || typeof window === 'undefined') return;
     const unique = Array.from(new Set(texts.map((t) => t.trim()).filter(Boolean)));
-    const queue = unique.filter((t) => {
+    const fresh = unique.filter((t) => {
       const key = t.toLowerCase();
       return !this.audioBufferCache.has(key) && !this.inFlightFetches.has(key);
     });
-    if (queue.length === 0) return;
+    if (fresh.length === 0) return;
 
-    const worker = async () => {
-      while (queue.length > 0) {
-        const next = queue.shift();
-        if (!next) break;
-        await this.fetchSharedTtsBuffer(next);
+    // Prioritize newly requested texts ahead of older queued items
+    const freshKeys = new Set(fresh.map((t) => t.toLowerCase()));
+    this.pendingPrefetchQueue = [
+      ...fresh,
+      ...this.pendingPrefetchQueue.filter((t) => !freshKeys.has(t.toLowerCase())),
+    ].slice(0, 8);
+
+    if (this.isPrefetchWorkerRunning) return;
+    this.isPrefetchWorkerRunning = true;
+
+    const run = async () => {
+      try {
+        while (this.pendingPrefetchQueue.length > 0) {
+          const next = this.pendingPrefetchQueue.shift();
+          if (!next) break;
+          await this.fetchSharedTtsBuffer(next);
+        }
+      } finally {
+        this.isPrefetchWorkerRunning = false;
       }
     };
 
-    // Sequential prefetch (concurrency 1) prevents rate-limit spikes so Gemini voice stays consistent
-    void worker();
+    void run();
   }
 
   private fetchSharedTtsBuffer(cleanText: string): Promise<CachedClientAudio | null> {
@@ -585,7 +601,6 @@ class SoundEffects {
 
         audio.src = blobUrl;
         audio.playbackRate = this.speechRate;
-        audio.load();
 
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.then === 'function') {

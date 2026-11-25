@@ -155,7 +155,7 @@ export default function App() {
     }
 
     const feedbackSegments = buildValidationFeedbackSegments(currentQuestion, isCorrect);
-    void speakArabicSegments(feedbackSegments, undefined, 140);
+    void speakArabicSegments(feedbackSegments, undefined, 0);
 
     const answerRecord: UserAnswer = {
       questionId: currentQuestion.id,
@@ -407,6 +407,7 @@ export default function App() {
               {/* Interactive Question Card */}
               <QuestionCard
                 question={currentQuestion}
+                nextQuestion={activeQuestions[currentIndex + 1]}
                 currentIndex={currentIndex}
                 totalQuestions={activeQuestions.length}
                 selectedAnswers={selectedAnswers}

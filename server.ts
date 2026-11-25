@@ -64,6 +64,8 @@ function getGeminiClient(): GoogleGenAI | null {
 /**
  * Primary high-fluency Arabic speech via Gemini 3.8 Flash Lite TTS
  */
+let liteCooldownUntil = 0;
+
 async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | null; errorReason?: string }> {
   const ai = getGeminiClient();
   if (!ai) return { audio: null, errorReason: 'missing-api-key' };
@@ -111,7 +113,12 @@ async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | n
     };
   };
 
-  for (const modelName of ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'] as const) {
+  const models: Array<'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts'> =
+    Date.now() < liteCooldownUntil
+      ? ['gemini-3.8-flash-tts']
+      : ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
+
+  for (const modelName of models) {
     try {
       const audio = await callGemini(modelName);
       if (audio) return { audio };
@@ -119,6 +126,7 @@ async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | n
       const msg = err instanceof Error ? err.message : String(err);
       const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
       if (isRateLimit && modelName === 'gemini-3.8-flash-lite-tts') {
+        liteCooldownUntil = Date.now() + 5 * 60 * 1000;
         continue;
       }
       console.warn(`Gemini TTS (${modelName}) unavailable:`, msg);

@@ -19,6 +19,7 @@ import {
 
 interface QuestionCardProps {
   question: QuizQuestion;
+  nextQuestion?: QuizQuestion;
   currentIndex: number;
   totalQuestions: number;
   selectedAnswers: number[];
@@ -40,6 +41,7 @@ interface QuestionCardProps {
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
+  nextQuestion,
   currentIndex,
   totalQuestions,
   selectedAnswers,
@@ -112,17 +114,39 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     };
   }, [question.id, autoPlayAudio]);
 
-  // Pre-warm only the predicted validation outcome once the user finishes choosing an option
+  // Pre-warm current question audio immediately on load so "استمع للسؤال والخيارات" runs at the click
+  useEffect(() => {
+    if (hasValidated || autoPlayAudio) return;
+    const questionSegments = buildQuestionSpeechSegments(question);
+    if (questionSegments[0]) {
+      soundManager.prefetchTexts([questionSegments[0].text]);
+    }
+  }, [question.id, autoPlayAudio, hasValidated]);
+
+  // Pre-warm predicted validation answer & explanation immediately once an option is selected
   useEffect(() => {
     if (hasValidated || selectedAnswers.length === 0) return;
     const timer = setTimeout(() => {
       const predictedCorrect = evaluateAnswer(selectedAnswers, question.correctAnswers);
       const predictedSegments = buildValidationFeedbackSegments(question, predictedCorrect);
       soundManager.prefetchTexts(predictedSegments.map((s) => s.text));
-    }, 450);
+    }, 60);
 
     return () => clearTimeout(timer);
   }, [question.id, hasValidated, selectedAnswers]);
+
+  // Pre-warm next question's audio while user reviews current answer
+  useEffect(() => {
+    if (!hasValidated || !nextQuestion) return;
+    const timer = setTimeout(() => {
+      const nextSegments = buildQuestionSpeechSegments(nextQuestion);
+      if (nextSegments[0]) {
+        soundManager.prefetchTexts([nextSegments[0].text]);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [hasValidated, nextQuestion?.id]);
 
   const handleSpeakSingleOption = (optId: number, optText: string, e: React.MouseEvent) => {
     e.stopPropagation();

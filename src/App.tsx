@@ -155,7 +155,7 @@ export default function App() {
     }
 
     const feedbackSegments = buildValidationFeedbackSegments(currentQuestion, isCorrect);
-    void speakArabicSegments(feedbackSegments, undefined, 260);
+    void speakArabicSegments(feedbackSegments, undefined, 140);
 
     const answerRecord: UserAnswer = {
       questionId: currentQuestion.id,

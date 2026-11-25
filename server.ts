@@ -25,11 +25,17 @@ interface CachedAudio {
 
 // In-memory cache for generated TTS audio to make repeat plays instantaneous
 const ttsCache = new Map<string, CachedAudio>();
+const inFlightTts = new Map<string, Promise<CachedAudio>>();
+let cachedGeminiClient: GoogleGenAI | null | undefined;
 
 function getGeminiClient(): GoogleGenAI | null {
+  if (cachedGeminiClient !== undefined) return cachedGeminiClient;
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
-  return new GoogleGenAI({
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+    cachedGeminiClient = null;
+    return null;
+  }
+  cachedGeminiClient = new GoogleGenAI({
     apiKey,
     httpOptions: {
       headers: {
@@ -37,6 +43,7 @@ function getGeminiClient(): GoogleGenAI | null {
       },
     },
   });
+  return cachedGeminiClient;
 }
 
 /**
@@ -57,7 +64,7 @@ async function generateGeminiTts(text: string): Promise<CachedAudio | null> {
               text,
               speechMetadata: {
                 style:
-                  'Warm, fluent Moroccan driving instructor reading clear Arabic and Moroccan Darija with natural phrasing, smooth cadence, and gentle pauses at commas and periods',
+                  'Clear, articulate, calm Moroccan driving instructor speaking distinct Arabic and Moroccan Darija with crisp pronunciation, steady unhurried cadence, and natural pauses between phrases',
               },
             },
           ],
@@ -223,33 +230,44 @@ app.get('/api/tts', async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Try Gemini 3.8 Flash Lite TTS for ultra-fluent natural Arabic voice
-    let result = await generateGeminiTts(cleanText);
+    let generationPromise = inFlightTts.get(cacheKey);
+    if (!generationPromise) {
+      generationPromise = (async () => {
+        // 1. Try Gemini 3.8 Flash Lite TTS for ultra-fluent natural Arabic voice
+        let result = await generateGeminiTts(cleanText);
 
-    // 2. Fallback to standard Arabic TTS stream
-    if (!result) {
-      const chunks = splitTextIntoChunks(cleanText, 195);
-      const audioBuffers: Buffer[] = [];
+        // 2. Fallback to standard Arabic TTS stream
+        if (!result) {
+          const chunks = splitTextIntoChunks(cleanText, 195);
+          const audioBuffers: Buffer[] = [];
 
-      for (const chunk of chunks) {
-        if (!chunk.trim()) continue;
-        const buf = await fetchAudioChunk(chunk);
-        audioBuffers.push(buf);
-      }
+          for (const chunk of chunks) {
+            if (!chunk.trim()) continue;
+            const buf = await fetchAudioChunk(chunk);
+            audioBuffers.push(buf);
+          }
 
-      result = {
-        buffer: Buffer.concat(audioBuffers),
-        mimeType: 'audio/mpeg',
-      };
+          result = {
+            buffer: Buffer.concat(audioBuffers),
+            mimeType: 'audio/mpeg',
+          };
+        }
+
+        // Cache the result (keep max 300 items in memory)
+        if (ttsCache.size > 300) {
+          const firstKey = ttsCache.keys().next().value;
+          if (firstKey) ttsCache.delete(firstKey);
+        }
+        ttsCache.set(cacheKey, result);
+        return result;
+      })().finally(() => {
+        inFlightTts.delete(cacheKey);
+      });
+
+      inFlightTts.set(cacheKey, generationPromise);
     }
 
-    // Cache the result (keep max 200 items in memory)
-    if (ttsCache.size > 200) {
-      const firstKey = ttsCache.keys().next().value;
-      if (firstKey) ttsCache.delete(firstKey);
-    }
-    ttsCache.set(cacheKey, result);
-
+    const result = await generationPromise;
     return sendAudioResponse(req, res, result.buffer, result.mimeType);
   } catch (error) {
     console.error('Error generating Arabic speech:', error);

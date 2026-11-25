@@ -33,6 +33,7 @@ class SoundEffects {
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private speakingListeners: Set<(speaking: boolean) => void> = new Set();
   private audioBufferCache: Map<string, CachedClientAudio> = new Map();
+  private inFlightFetches: Map<string, Promise<CachedClientAudio | null>> = new Map();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -290,17 +291,17 @@ class SoundEffects {
 
     try {
       const now = ctx.currentTime;
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+      [523.25, 659.25, 783.99].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + i * 0.06);
-        gain.gain.setValueAtTime(0.12, now + i * 0.06);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.25);
+        osc.frequency.setValueAtTime(freq, now + i * 0.04);
+        gain.gain.setValueAtTime(0.11, now + i * 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.11);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(now + i * 0.06);
-        osc.stop(now + i * 0.06 + 0.25);
+        osc.start(now + i * 0.04);
+        osc.stop(now + i * 0.04 + 0.11);
       });
     } catch {
       // Audio fallback
@@ -318,13 +319,13 @@ class SoundEffects {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(freq, now + i * 0.1);
-        gain.gain.setValueAtTime(0.1, now + i * 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.18);
+        osc.frequency.setValueAtTime(freq, now + i * 0.06);
+        gain.gain.setValueAtTime(0.09, now + i * 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.1);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(now + i * 0.1);
-        osc.stop(now + i * 0.1 + 0.18);
+        osc.start(now + i * 0.06);
+        osc.stop(now + i * 0.06 + 0.1);
       });
     } catch {
       // Audio fallback
@@ -441,59 +442,96 @@ class SoundEffects {
     }
   }
 
+  /**
+   * Silently pre-warm TTS audio buffers in background with low concurrency (2)
+   * so clicking Valider or Listen starts immediately with zero wait.
+   */
+  public prefetchTexts(texts: string[]): void {
+    if (this.isMuted || typeof window === 'undefined') return;
+    const unique = Array.from(new Set(texts.map((t) => t.trim()).filter(Boolean)));
+    const queue = unique.filter((t) => {
+      const key = t.toLowerCase();
+      return !this.audioBufferCache.has(key) && !this.inFlightFetches.has(key);
+    });
+    if (queue.length === 0) return;
+
+    const worker = async () => {
+      while (queue.length > 0) {
+        const next = queue.shift();
+        if (!next) break;
+        await this.fetchSharedTtsBuffer(next);
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(2, queue.length) }, () => worker());
+    void Promise.all(workers);
+  }
+
+  private fetchSharedTtsBuffer(cleanText: string): Promise<CachedClientAudio | null> {
+    const cacheKey = cleanText.toLowerCase();
+    const cached = this.audioBufferCache.get(cacheKey);
+    if (cached && cached.buffer.byteLength > 0) {
+      return Promise.resolve(cached);
+    }
+
+    const existingPromise = this.inFlightFetches.get(cacheKey);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    const fetchPromise = (async () => {
+      try {
+        const url = `/api/tts?text=${encodeURIComponent(cleanText)}`;
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: { Accept: 'audio/wav, audio/mpeg, audio/*' },
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('audio')) {
+          return null;
+        }
+
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength === 0) {
+          return null;
+        }
+
+        const entry: CachedClientAudio = {
+          buffer,
+          mimeType: contentType.split(';')[0].trim() || 'audio/mpeg',
+        };
+
+        if (this.audioBufferCache.size > 150) {
+          const firstKey = this.audioBufferCache.keys().next().value;
+          if (firstKey) this.audioBufferCache.delete(firstKey);
+        }
+        this.audioBufferCache.set(cacheKey, entry);
+        return entry;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timeoutId);
+        this.inFlightFetches.delete(cacheKey);
+      }
+    })();
+
+    this.inFlightFetches.set(cacheKey, fetchPromise);
+    return fetchPromise;
+  }
+
   private async fetchTtsAudioBuffer(
     text: string,
     requestId: number
   ): Promise<CachedClientAudio | null> {
     const cleanText = text.trim();
     if (!cleanText) return null;
-
-    const cacheKey = cleanText.toLowerCase();
-    const cached = this.audioBufferCache.get(cacheKey);
-    if (cached && cached.buffer.byteLength > 0) {
-      return cached;
-    }
-
-    const controller = new AbortController();
-    this.activeFetchControllers.add(controller);
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-    try {
-      const url = `/api/tts?text=${encodeURIComponent(cleanText)}`;
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: { Accept: 'audio/wav, audio/mpeg, audio/*' },
-      });
-
-      if (this.speechRequestId !== requestId) return null;
-
-      const contentType = response.headers.get('content-type') || '';
-      if (!response.ok || !contentType.includes('audio')) {
-        return null;
-      }
-
-      const buffer = await response.arrayBuffer();
-      if (buffer.byteLength === 0 || this.speechRequestId !== requestId) {
-        return null;
-      }
-
-      const entry: CachedClientAudio = {
-        buffer,
-        mimeType: contentType.split(';')[0].trim() || 'audio/mpeg',
-      };
-
-      if (this.audioBufferCache.size > 100) {
-        const firstKey = this.audioBufferCache.keys().next().value;
-        if (firstKey) this.audioBufferCache.delete(firstKey);
-      }
-      this.audioBufferCache.set(cacheKey, entry);
-      return entry;
-    } catch {
-      return null;
-    } finally {
-      clearTimeout(timeoutId);
-      this.activeFetchControllers.delete(controller);
-    }
+    const entry = await this.fetchSharedTtsBuffer(cleanText);
+    if (this.speechRequestId !== requestId) return null;
+    return entry;
   }
 
   private playWithAudioElement(audioData: CachedClientAudio, requestId: number): Promise<boolean> {

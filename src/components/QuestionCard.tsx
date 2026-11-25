@@ -111,6 +111,24 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     };
   }, [question.id, autoPlayAudio]);
 
+  // Pre-warm validation answer & explanation audio in background so Valider speaks immediately
+  useEffect(() => {
+    if (hasValidated) return;
+    const delay = autoPlayAudio ? 1100 : 250;
+    const timer = setTimeout(() => {
+      const rightSegments = buildValidationFeedbackSegments(question, true);
+      const wrongSegments = buildValidationFeedbackSegments(question, false);
+      const questionSegments = !autoPlayAudio ? buildQuestionSpeechSegments(question) : [];
+      soundManager.prefetchTexts([
+        ...rightSegments.map((s) => s.text),
+        ...wrongSegments.map((s) => s.text),
+        ...(questionSegments[0] ? [questionSegments[0].text] : []),
+      ]);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [question.id, autoPlayAudio, hasValidated]);
+
   const handleSpeakSingleOption = (optId: number, optText: string, e: React.MouseEvent) => {
     e.stopPropagation();
     soundManager.stopSpeaking();

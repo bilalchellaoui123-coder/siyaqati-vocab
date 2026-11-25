@@ -164,7 +164,6 @@ export const RousseauConsole: React.FC<RousseauConsoleProps> = ({
           {!hasValidated ? (
             <button
               onClick={() => {
-                soundManager.playClick();
                 onValidate();
               }}
               disabled={selectedAnswers.length === 0}
@@ -230,7 +229,6 @@ export const RousseauConsole: React.FC<RousseauConsoleProps> = ({
           {!hasValidated ? (
             <button
               onClick={() => {
-                soundManager.playClick();
                 onValidate();
               }}
               disabled={selectedAnswers.length === 0}

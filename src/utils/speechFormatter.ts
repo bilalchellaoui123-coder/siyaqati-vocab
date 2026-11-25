@@ -187,7 +187,8 @@ export function buildValidationFeedbackSegments(
   const optionPhrases =
     correctOptions.length > 0
       ? correctOptions.map((opt) => {
-          const cleanOpt = cleanArabicForSpeech(opt.text, { stripFrenchParens: true });
+          const explicitPartText = opt.text.replace(/\s*[:：]\s*(نعم|لا)\s*$/, '، الجواب $1');
+          const cleanOpt = cleanArabicForSpeech(explicitPartText, { stripFrenchParens: true });
           return `رقم ${numberToArabicWord(opt.id)}، ${cleanOpt}`;
         })
       : question.correctAnswers.map((id) => `رقم ${numberToArabicWord(id)}`);
@@ -227,7 +228,7 @@ export function buildValidationFeedbackSegments(
     {
       text: answerText,
       optionId: null,
-      pauseAfterMs: 280,
+      pauseAfterMs: 320,
     },
     {
       text: `السبب: ${explanationSentence}`,

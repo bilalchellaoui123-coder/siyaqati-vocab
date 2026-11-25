@@ -68,9 +68,11 @@ async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | n
   const ai = getGeminiClient();
   if (!ai) return { audio: null, errorReason: 'missing-api-key' };
 
-  const callGemini = async (): Promise<CachedAudio | null> => {
+  const callGemini = async (
+    modelName: 'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts'
+  ): Promise<CachedAudio | null> => {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash-lite-tts',
+      model: modelName,
       contents: [
         {
           role: 'user',
@@ -79,7 +81,7 @@ async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | n
               text,
               speechMetadata: {
                 style:
-                  'Clear, articulate, calm Moroccan driving instructor speaking distinct Arabic and Moroccan Darija with crisp pronunciation, steady unhurried cadence, and natural pauses between phrases',
+                  'Clear, articulate, calm Moroccan driving instructor speaking natural Arabic and Moroccan Darija with warm human intonation, crisp pronunciation, and natural pauses between phrases',
               },
             },
           ],
@@ -109,28 +111,21 @@ async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | n
     };
   };
 
-  try {
-    const audio = await callGemini();
-    if (!audio) return { audio: null, errorReason: 'empty-audio' };
-    return { audio };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
-    if (isRateLimit) {
-      // Brief backoff and single retry before falling back
-      await new Promise((r) => setTimeout(r, 700));
-      try {
-        const retryAudio = await callGemini();
-        if (retryAudio) return { audio: retryAudio };
-      } catch (retryErr: unknown) {
-        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-        console.warn('Gemini TTS rate-limited after retry:', retryMsg);
-        return { audio: null, errorReason: retryMsg.slice(0, 120) };
+  for (const modelName of ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'] as const) {
+    try {
+      const audio = await callGemini(modelName);
+      if (audio) return { audio };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+      if (isRateLimit && modelName === 'gemini-3.8-flash-lite-tts') {
+        continue;
       }
+      console.warn(`Gemini TTS (${modelName}) unavailable:`, msg);
     }
-    console.warn('Gemini TTS unavailable, using fallback stream:', msg);
-    return { audio: null, errorReason: msg.slice(0, 120) };
   }
+
+  return { audio: null, errorReason: 'gemini-tts-unavailable' };
 }
 
 /**

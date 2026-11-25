@@ -144,40 +144,40 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 animate-in fade-in duration-200" dir="rtl">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2.5 sm:gap-4 animate-in fade-in duration-200" dir="rtl">
       {/* Top Meta Bar */}
-      <div className="flex items-center justify-between bg-slate-800/90 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/80 shadow-md">
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <div className="bg-red-600 text-white font-black text-xs sm:text-sm px-3 py-1 rounded-lg shadow-sm">
-            السؤال {currentIndex + 1} / {totalQuestions}
-          </div>
-          <div className="bg-blue-600/20 text-blue-300 border border-blue-500/30 text-xs font-bold px-2.5 py-1 rounded-lg">
-            سلسلة {question.serie} • صنف ب
-          </div>
-          <span className="hidden sm:inline-block text-xs text-slate-400 font-medium">
+      <div className="flex items-center justify-between gap-2 bg-slate-800/90 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-700/80 shadow-md">
+        <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
+          <span className="bg-red-600 text-white font-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-lg shadow-sm whitespace-nowrap tabular-nums">
+            {currentIndex + 1} / {totalQuestions}
+          </span>
+          <span className="text-slate-300 font-bold whitespace-nowrap">
+            سلسلة {question.serie}
+          </span>
+          <span className="hidden sm:inline text-slate-500" aria-hidden="true">·</span>
+          <span className="hidden sm:inline-block text-xs text-slate-400 font-medium truncate">
             {question.category}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Auto-play toggle button */}
           <button
             onClick={toggleAutoPlay}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all border flex items-center gap-1 whitespace-nowrap ${
               autoPlayAudio
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
                 : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border-slate-700'
             }`}
             title="تشغيل القراءة الصوتية باللغة العربية تلقائياً عند ظهور أي سؤال جديد"
           >
-            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">صوت تلقائي:</span>
-            <span>{autoPlayAudio ? 'مُفعّل' : 'معطّل'}</span>
+            <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>تلقائي: {autoPlayAudio ? 'مُفعّل' : 'معطّل'}</span>
           </button>
 
           {isExamMode && typeof timeLeftSeconds === 'number' && (
             <div
-              className={`px-3 py-1 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 border ${
+              className={`px-2 py-1 rounded-lg font-mono font-bold text-xs flex items-center gap-1 border tabular-nums ${
                 timeLeftSeconds <= 10
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
                   : 'bg-slate-900 text-slate-200 border-slate-700'
@@ -193,7 +193,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               soundManager.playClick();
               onToggleBookmark();
             }}
-            className={`p-2 rounded-xl transition-all border ${
+            className={`min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg sm:rounded-xl transition-all border ${
               isBookmarked
                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                 : 'bg-slate-900/60 text-slate-400 hover:text-amber-400 border-slate-700'
@@ -207,7 +207,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       {/* Main Interactive Card */}
-      <div className="bg-slate-900 border border-slate-700/90 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-5">
+      <div className="bg-slate-900 border border-slate-700/90 rounded-xl sm:rounded-2xl p-3 sm:p-6 shadow-2xl space-y-3 sm:space-y-5">
         {/* Driving Scene Graphic from PDF */}
         <SceneIllustration
           sceneType={question.sceneType}
@@ -218,38 +218,38 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           hasValidated={hasValidated}
         />
 
-        {/* Question Text Box with Speech */}
-        <div className="bg-slate-950/80 p-4 sm:p-5 rounded-2xl border border-slate-800 flex items-start justify-between gap-3 shadow-inner">
-          <div className="space-y-1">
-            <h2 className="text-lg sm:text-xl font-black text-white leading-relaxed">
+        {/* Question Text Box with Full-Width Arabic Readability + Speech */}
+        <div className="bg-slate-950/80 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 sm:gap-3 shadow-inner">
+          <div className="space-y-1 min-w-0">
+            <h2 className="text-base sm:text-xl font-black text-white leading-snug sm:leading-relaxed">
               {question.questionText}
             </h2>
             {question.subQuestionText && (
-              <p className="text-sm font-semibold text-slate-300">{question.subQuestionText}</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-300">{question.subQuestionText}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
             {isPlayingAudio && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold animate-pulse">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold animate-pulse">
                 <span className="flex items-end gap-0.5 h-3">
                   <span className="w-1 bg-amber-400 h-2 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1 bg-amber-400 h-3 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-1 bg-amber-400 h-1.5 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </span>
-                <span>جاري قراءة السؤال...</span>
+                <span>جاري القراءة...</span>
               </span>
             )}
             <button
               onClick={handleSpeakQuestion}
-              className={`px-3.5 py-2.5 rounded-xl transition-all border flex items-center gap-2 active:scale-95 shadow-md ${
+              className={`w-full sm:w-auto justify-center px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl transition-all border flex items-center gap-2 active:scale-95 shadow-md ${
                 isPlayingAudio
-                  ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-500/30 ring-4 ring-amber-400/30'
+                  ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-500/30 ring-2 sm:ring-4 ring-amber-400/30'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border-slate-700'
               }`}
               title={isPlayingAudio ? 'إيقاف الصوت' : 'استمع للسؤال والخيارات بصوت واضح'}
               aria-label="استمع للسؤال والخيارات"
             >
-              <Volume2 className={`w-5 h-5 shrink-0 ${isPlayingAudio ? 'animate-pulse' : ''}`} />
+              <Volume2 className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 ${isPlayingAudio ? 'animate-pulse' : ''}`} />
               <span className="text-xs font-bold whitespace-nowrap">
                 {isPlayingAudio ? 'إيقاف الصوت' : 'استمع للسؤال والخيارات'}
               </span>
@@ -258,7 +258,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
 
         {/* Options List */}
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-2 sm:gap-3">
           {question.options.map((opt) => {
             const isSelected = selectedAnswers.includes(opt.id);
             const isAnswerCorrect = question.correctAnswers.includes(opt.id);
@@ -295,11 +295,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     onToggleAnswer(opt.id);
                   }
                 }}
-                className={`w-full p-4 rounded-xl border-2 text-right font-bold text-sm sm:text-base flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-[0.99] select-none ${optionStyle}`}
+                className={`w-full px-3 py-2.5 sm:p-4 min-h-[48px] rounded-xl border-2 text-right font-bold text-sm sm:text-base flex items-center justify-between gap-2 sm:gap-3 transition-all cursor-pointer active:scale-[0.99] select-none ${optionStyle}`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                   <span
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm shrink-0 border ${
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-black text-xs sm:text-sm shrink-0 border tabular-nums ${
                       isSelected
                         ? 'bg-emerald-500 text-slate-950 border-emerald-400'
                         : 'bg-slate-900 text-slate-300 border-slate-700'
@@ -307,11 +307,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   >
                     {opt.id}
                   </span>
-                  <span className="leading-snug">{opt.text}</span>
+                  <span className="leading-snug break-words">{opt.text}</span>
+                </div>
+
+                {/* Right side audio + check icon */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={(e) => handleSpeakSingleOption(opt.id, opt.text, e)}
-                    className={`p-1.5 rounded-lg transition shrink-0 ${
+                    className={`min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition shrink-0 ${
                       playingOptionId === opt.id
                         ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
                         : 'text-slate-400 hover:text-amber-400 hover:bg-slate-700/80'
@@ -319,21 +323,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     title={`استمع للجواب ${opt.id} فقط`}
                     aria-label={`استمع للجواب رقم ${opt.id} فقط`}
                   >
-                    <Volume2 className={`w-3.5 h-3.5 ${playingOptionId === opt.id ? 'animate-bounce' : ''}`} />
+                    <Volume2 className={`w-4 h-4 ${playingOptionId === opt.id ? 'animate-bounce' : ''}`} />
                   </button>
-                </div>
 
-                {/* Right side check icon */}
-                <div className="shrink-0">
                   {hasValidated ? (
                     isAnswerCorrect ? (
-                      <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30">
-                        <CheckCircle2 className="w-4 h-4" />
+                      <span className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         صحيح
                       </span>
                     ) : isSelected ? (
-                      <span className="flex items-center gap-1 text-xs font-bold text-rose-400 bg-rose-500/20 px-2 py-1 rounded-md border border-rose-500/30">
-                        <XCircle className="w-4 h-4" />
+                      <span className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-rose-400 bg-rose-500/20 px-2 py-1 rounded-md border border-rose-500/30">
+                        <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         خطأ
                       </span>
                     ) : null

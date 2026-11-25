@@ -294,7 +294,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Cairo',sans-serif]" dir="rtl">
+    <div className="min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col font-['Cairo',sans-serif] overflow-x-hidden" dir="rtl">
       {/* Top Header */}
       <Header
         activeTab={activeTab}
@@ -306,7 +306,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 pb-16">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-2.5 py-2.5 sm:p-6 pb-8 sm:pb-16">
         {/* VIEW: Vocabulary Hub */}
         {activeTab === 'vocab' && (
           <VocabularyHub
@@ -348,32 +348,33 @@ export default function App() {
         {(activeTab === 'practice' || activeTab === 'exam' || activeTab === 'mistakes') &&
           !completedSession &&
           currentQuestion && (
-            <div className="space-y-6">
+            <div className="space-y-2.5 sm:space-y-5">
               {/* Practice Mode Series Filter */}
               {activeTab === 'practice' && (
-                <div className="flex items-center justify-between flex-wrap gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-                    <Filter className="w-4 h-4 text-amber-400" />
-                    <span>اختر السلسلة للتدرب:</span>
+                <div className="flex items-center gap-2 bg-slate-900/80 px-2.5 py-1.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 shrink-0">
+                    <Filter className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">اختر السلسلة للتدرب:</span>
                   </div>
-                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1">
                     {[
-                      { id: 'all', label: 'جميع السلاسل (الكل)' },
-                      { id: 5, label: 'سلسلة 5 (Cat B)' },
-                      { id: 1, label: 'سلسلة 1 (Cat B)' },
-                      { id: 6, label: 'سلسلة 6 (Cat B)' },
-                      { id: 2, label: 'سلسلة 2 (Cat B)' },
+                      { id: 'all', label: 'الكل', fullLabel: 'جميع السلاسل (الكل)' },
+                      { id: 5, label: 'سلسلة 5', fullLabel: 'سلسلة 5 (Cat B)' },
+                      { id: 1, label: 'سلسلة 1', fullLabel: 'سلسلة 1 (Cat B)' },
+                      { id: 6, label: 'سلسلة 6', fullLabel: 'سلسلة 6 (Cat B)' },
+                      { id: 2, label: 'سلسلة 2', fullLabel: 'سلسلة 2 (Cat B)' },
                     ].map((s) => (
                       <button
                         key={s.id}
                         onClick={() => handleSerieFilterChange(s.id as number | 'all')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                        className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all border ${
                           selectedSerie === s.id
                             ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
                             : 'bg-slate-800/80 text-slate-300 hover:text-white border-slate-700'
                         }`}
                       >
-                        {s.label}
+                        <span className="sm:hidden">{s.label}</span>
+                        <span className="hidden sm:inline">{s.fullLabel}</span>
                       </button>
                     ))}
                   </div>

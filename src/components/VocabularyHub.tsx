@@ -77,30 +77,30 @@ export const VocabularyHub: React.FC<VocabularyHubProps> = ({ onSelectTerm, onTe
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200" dir="rtl">
+    <div className="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-in fade-in duration-200" dir="rtl">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 p-6 sm:p-8 rounded-3xl border border-indigo-900/60 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-indigo-900/60 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+        <div className="space-y-1.5 sm:space-y-2 max-w-xl">
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-300">
             <BookOpen className="w-3.5 h-3.5" />
-            معجم مصطلحات وقواعد السياقة بالمغرب
+            <span>معجم مصطلحات وقواعد السياقة بالمغرب</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white">
+          <h2 className="text-xl sm:text-3xl font-black text-white">
             دليلك الشامل لمصطلحات كود السياقة
           </h2>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            تعلم المفاهيم الأساسية المستعملة في امتحانات البيرمي: زمن رد الفعل، مسافة الأمان، الفحص التقني، علامات الإلزام، بالدارجة المغربية والعربية والفرنسية.
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            تعلم المفاهيم الأساسية المستعملة في امتحانات البيرمي بالدارجة المغربية والعربية والفرنسية.
           </p>
         </div>
 
         {/* Mode Switcher */}
-        <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 shrink-0">
+        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800 w-full md:w-auto shrink-0">
           <button
             onClick={() => {
               soundManager.playClick();
               setViewMode('grid');
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 md:flex-initial justify-center flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
               viewMode === 'grid'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-white'
@@ -115,14 +115,14 @@ export const VocabularyHub: React.FC<VocabularyHubProps> = ({ onSelectTerm, onTe
               setViewMode('flashcards');
               setIsFlipped(false);
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 md:flex-initial justify-center flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
               viewMode === 'flashcards'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>بطاقات الحفظ (Flashcards)</span>
+            <span>بطاقات الحفظ</span>
           </button>
         </div>
       </div>

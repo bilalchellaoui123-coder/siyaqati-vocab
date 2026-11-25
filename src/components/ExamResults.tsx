@@ -62,10 +62,10 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
   const displayedAnswers = filterMode === 'mistakes' ? mistakeAnswers : answersList;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200" dir="rtl">
+    <div className="w-full max-w-4xl mx-auto space-y-5 sm:space-y-8 animate-in fade-in duration-200" dir="rtl">
       {/* Result Hero Banner */}
       <div
-        className={`relative overflow-hidden p-8 sm:p-10 rounded-3xl border shadow-2xl text-center space-y-4 ${
+        className={`relative overflow-hidden p-5 sm:p-10 rounded-2xl sm:rounded-3xl border shadow-2xl text-center space-y-4 ${
           session.isPassed
             ? 'bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 border-emerald-600/50'
             : 'bg-gradient-to-b from-rose-950 via-slate-900 to-slate-900 border-rose-600/50'
@@ -73,17 +73,17 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
       >
         <div className="inline-flex p-3 rounded-2xl bg-slate-950/70 border border-slate-800 mx-auto">
           {session.isPassed ? (
-            <Award className="w-12 h-12 text-emerald-400" />
+            <Award className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-400" />
           ) : (
-            <XCircle className="w-12 h-12 text-rose-400" />
+            <XCircle className="w-10 h-10 sm:w-12 sm:h-12 text-rose-400" />
           )}
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-3xl sm:text-4xl font-black text-white">
+          <h2 className="text-2xl sm:text-4xl font-black text-white">
             {session.isPassed ? 'مبروك! اجتزت الاختبار بنجاح' : 'لم توفق هذه المرة'}
           </h2>
-          <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
             {session.isPassed
               ? 'أحسنت! نتيجتك تتجاوز الحد الأدنى المطلوب لاجتياز امتحان رخصة السياقة بالمغرب (32/40 أو 80%).'
               : 'تحتاج إلى 32 إجابة صحيحة من أصل 40 (أو 80%) للنجاح في الامتحان الرسمي. راجع أخطاءك وتدرب مجدداً!'}
@@ -91,17 +91,17 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
         </div>
 
         {/* Big Score Display */}
-        <div className="flex items-center justify-center gap-6 pt-2">
-          <div className="bg-slate-950/80 px-6 py-4 rounded-2xl border border-slate-800">
-            <div className="text-xs font-bold text-slate-400">النتيجة المحصلة</div>
-            <div className="text-3xl sm:text-4xl font-black text-white mt-1">
+        <div className="grid grid-cols-2 gap-3 max-w-md mx-auto pt-1">
+          <div className="bg-slate-950/80 px-3 py-3 sm:px-6 sm:py-4 rounded-2xl border border-slate-800">
+            <div className="text-[11px] sm:text-xs font-bold text-slate-400">النتيجة المحصلة</div>
+            <div className="text-2xl sm:text-4xl font-black text-white mt-1 tabular-nums">
               {session.score} / {session.totalQuestions}
             </div>
           </div>
-          <div className="bg-slate-950/80 px-6 py-4 rounded-2xl border border-slate-800">
-            <div className="text-xs font-bold text-slate-400">النسبة المئوية</div>
+          <div className="bg-slate-950/80 px-3 py-3 sm:px-6 sm:py-4 rounded-2xl border border-slate-800">
+            <div className="text-[11px] sm:text-xs font-bold text-slate-400">النسبة المئوية</div>
             <div
-              className={`text-3xl sm:text-4xl font-black mt-1 ${
+              className={`text-2xl sm:text-4xl font-black mt-1 tabular-nums ${
                 session.isPassed ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
@@ -111,13 +111,13 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+        <div className="pt-2 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-center gap-2.5 sm:gap-3">
           <button
             onClick={() => {
               soundManager.playClick();
               onRetake();
             }}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-95"
           >
             <RotateCcw className="w-4 h-4" />
             <span>إعادة الاختبار من جديد</span>
@@ -129,7 +129,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
                 soundManager.playClick();
                 onPracticeMistakesOnly();
               }}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition-all shadow-lg shadow-rose-600/20 active:scale-95"
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition-all shadow-lg shadow-rose-600/20 active:scale-95"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>تدرب على الأخطاء فقط ({mistakeAnswers.length})</span>
@@ -141,7 +141,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
               soundManager.playClick();
               onGoToDashboard();
             }}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 transition"
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 transition"
           >
             <LayoutDashboard className="w-4 h-4" />
             <span>لوحة التقدم والإحصائيات</span>
@@ -150,7 +150,7 @@ export const ExamResults: React.FC<ExamResultsProps> = ({
       </div>
 
       {/* Detailed Questions Review */}
-      <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-6">
+      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <h3 className="text-xl font-black text-white flex items-center gap-2">

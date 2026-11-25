@@ -67,23 +67,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-8 animate-in fade-in duration-200" dir="rtl">
+    <div className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-8 animate-in fade-in duration-200" dir="rtl">
       {/* Welcome & Readiness Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 sm:p-8 rounded-3xl border border-slate-700/80 shadow-2xl">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-700/80 shadow-2xl">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black border bg-slate-800/80 text-amber-400 border-amber-500/30">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              لوحة تتبع التقدم والجاهزية للامتحان
+            <div className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>لوحة تتبع التقدم والجاهزية للامتحان</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
+            <h2 className="text-xl sm:text-3xl font-black text-white leading-snug">
               تقييم الأداء ونسبة الإجابات الصحيحة والخاطئة
             </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               تتبع مستواك في أسئلة كود السياقة المغربي صنف (ب)، واكتشف أسباب الأجوبة الصحيحة والمصطلحات التي تتطلب مراجعة.
             </p>
-            <div className="pt-2 flex items-center gap-3">
-              <span className={`px-3 py-1 rounded-lg text-xs font-black border ${readiness.badge}`}>
+            <div className="pt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${readiness.badge}`}>
                 {readiness.status}
               </span>
               <p className="text-xs text-slate-400">{readiness.advice}</p>
@@ -91,8 +91,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Big Gauge Card */}
-          <div className="w-full sm:w-auto bg-slate-950/80 p-5 rounded-2xl border border-slate-800 flex flex-col items-center justify-center shrink-0 min-w-[200px] text-center shadow-lg">
-            <div className="text-4xl sm:text-5xl font-black text-emerald-400 tracking-tight">
+          <div className="w-full sm:w-auto bg-slate-950/80 p-4 sm:p-5 rounded-2xl border border-slate-800 flex flex-col items-center justify-center shrink-0 sm:min-w-[200px] text-center shadow-lg">
+            <div className="text-3xl sm:text-5xl font-black text-emerald-400 tracking-tight tabular-nums">
               {successRate}%
             </div>
             <div className="text-xs font-bold text-slate-400 mt-1">نسبة النجاح العامة</div>
@@ -103,55 +103,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Primary KPI Grid: Correct vs Incorrect vs Streak */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-md flex items-center justify-between">
-          <div>
-            <div className="text-xs font-bold text-slate-400">إجمالي الأسئلة المنجزة</div>
-            <div className="text-2xl font-black text-white mt-1">{progress.totalAnswered}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">سؤال تم الإجابة عليه</div>
+      {/* Primary KPI Grid: 2x2 on phones, 4-column on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-slate-900 border border-slate-800 p-3.5 sm:p-5 rounded-2xl shadow-md flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs font-bold text-slate-400 truncate">إجمالي الأسئلة</div>
+            <div className="text-xl sm:text-2xl font-black text-white mt-0.5 tabular-nums">{progress.totalAnswered}</div>
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">سؤال منجز</div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20">
-            <BookOpen className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-md flex items-center justify-between">
-          <div>
-            <div className="text-xs font-bold text-emerald-400">الإجابات الصحيحة (Right)</div>
-            <div className="text-2xl font-black text-emerald-400 mt-1">{progress.totalCorrect}</div>
-            <div className="text-[11px] text-emerald-500/80 mt-0.5">
+        <div className="bg-slate-900 border border-slate-800 p-3.5 sm:p-5 rounded-2xl shadow-md flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs font-bold text-emerald-400 truncate">الصحيحة</div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5 tabular-nums">{progress.totalCorrect}</div>
+            <div className="text-[10px] sm:text-[11px] text-emerald-500/80 mt-0.5 truncate">
               {progress.totalAnswered > 0
                 ? `${Math.round((progress.totalCorrect / progress.totalAnswered) * 100)}% من المجموع`
                 : '0%'}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-md flex items-center justify-between">
-          <div>
-            <div className="text-xs font-bold text-rose-400">الإجابات الخاطئة (False)</div>
-            <div className="text-2xl font-black text-rose-400 mt-1">{progress.totalIncorrect}</div>
-            <div className="text-[11px] text-rose-500/80 mt-0.5">
-              {progress.mistakeQuestionIds.length} سؤال في بنك الأخطاء
+        <div className="bg-slate-900 border border-slate-800 p-3.5 sm:p-5 rounded-2xl shadow-md flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs font-bold text-rose-400 truncate">الخاطئة</div>
+            <div className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5 tabular-nums">{progress.totalIncorrect}</div>
+            <div className="text-[10px] sm:text-[11px] text-rose-500/80 mt-0.5 truncate">
+              {progress.mistakeQuestionIds.length} ببنك الأخطاء
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20">
-            <XCircle className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 shrink-0">
+            <XCircle className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-md flex items-center justify-between">
-          <div>
-            <div className="text-xs font-bold text-amber-400">تسلسل النجاح المتتالي</div>
-            <div className="text-2xl font-black text-amber-400 mt-1">{progress.currentStreak} 🔥</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">اختبارات ناجحة متتالية</div>
+        <div className="bg-slate-900 border border-slate-800 p-3.5 sm:p-5 rounded-2xl shadow-md flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs font-bold text-amber-400 truncate">تسلسل النجاح</div>
+            <div className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5 tabular-nums">{progress.currentStreak} 🔥</div>
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">نجاح متتالي</div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
-            <Flame className="w-6 h-6" />
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 shrink-0">
+            <Flame className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
@@ -353,7 +353,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* Reset Progress Action */}
-      <div className="pt-4 flex items-center justify-between border-t border-slate-800">
+      <div className="pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-800">
         <div className="text-xs text-slate-400">
           يتم حفظ تقدمك تلقائياً في المتصفح. يمكنك تصفير الإحصائيات للبدء من جديد.
         </div>
@@ -364,7 +364,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onResetProgress();
             }
           }}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/60 text-xs font-bold transition"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/60 text-xs font-bold transition shrink-0"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>تصفير الإحصائيات</span>

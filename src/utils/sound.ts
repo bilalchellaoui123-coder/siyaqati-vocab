@@ -100,6 +100,9 @@ class SoundEffects {
       const audio = new Audio();
       audio.preload = 'auto';
       audio.setAttribute('playsinline', 'true');
+      if ('preservesPitch' in audio) {
+        audio.preservesPitch = true;
+      }
       this.persistentAudio = audio;
     }
     return this.persistentAudio;
@@ -496,7 +499,7 @@ class SoundEffects {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     const fetchPromise = (async () => {
       try {
@@ -601,6 +604,9 @@ class SoundEffects {
 
         audio.src = blobUrl;
         audio.playbackRate = this.speechRate;
+        if ('preservesPitch' in audio) {
+          audio.preservesPitch = true;
+        }
 
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.then === 'function') {
@@ -612,6 +618,9 @@ class SoundEffects {
               } else {
                 this.audioUnlocked = true;
                 audio.playbackRate = this.speechRate;
+                if ('preservesPitch' in audio) {
+                  audio.preservesPitch = true;
+                }
               }
             })
             .catch(() => {

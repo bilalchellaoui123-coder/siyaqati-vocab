@@ -36,6 +36,7 @@ interface CachedAudio {
   buffer: Buffer;
   mimeType: string;
   engine: 'gemini' | 'fallback';
+  reason?: string;
 }
 
 // In-memory cache for generated TTS audio to make repeat plays instantaneous
@@ -61,79 +62,117 @@ function getGeminiClient(): GoogleGenAI | null {
   return cachedGeminiClient;
 }
 
+const TTS_CACHE_VERSION = 'v3-darija';
+
 /**
- * Primary high-fluency Arabic speech via Gemini 3.8 Flash Lite TTS
+ * Primary high-fluency Moroccan Darija speech via Gemini 3.8 TTS
  */
+let flashCooldownUntil = 0;
 let liteCooldownUntil = 0;
+let geminiQueue: Promise<void> = Promise.resolve();
+let lastGeminiCallAt = 0;
+
+function enqueueGeminiCall<T>(fn: () => Promise<T>): Promise<T> {
+  const run = geminiQueue.then(async () => {
+    const elapsed = Date.now() - lastGeminiCallAt;
+    if (elapsed < 300) {
+      await new Promise((r) => setTimeout(r, 300 - elapsed));
+    }
+    lastGeminiCallAt = Date.now();
+    return fn();
+  });
+  geminiQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
 
 async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | null; errorReason?: string }> {
   const ai = getGeminiClient();
   if (!ai) return { audio: null, errorReason: 'missing-api-key' };
 
-  const callGemini = async (
-    modelName: 'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts'
-  ): Promise<CachedAudio | null> => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text,
-              speechMetadata: {
-                style:
-                  'Clear, articulate, calm Moroccan driving instructor speaking natural Arabic and Moroccan Darija with warm human intonation, crisp pronunciation, and natural pauses between phrases',
+  const callGemini = (
+    modelName: 'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts'
+  ): Promise<CachedAudio | null> =>
+    enqueueGeminiCall(async () => {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text,
+                speechMetadata: {
+                  style:
+                    'Warm, clear Moroccan driving school instructor (مونيتور سياقة مغربي) speaking authentic Moroccan Darija (الدارجة المغربية) and natural Moroccan Arabic. Use natural Casablanca-Rabat cadence, friendly conversational tone, crisp pronunciation of Darija words (such as باش، ديال، غادي، هاد، ليمن، ليسر، جوج، ملي، إلا) and numbers, with smooth short pauses at commas and colons.',
+                },
               },
+            ],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Kore' },
             },
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
-      },
+      });
+
+      const part = response.candidates?.[0]?.content?.parts?.[0];
+      const base64Audio = part?.inlineData?.data;
+      if (!base64Audio) return null;
+
+      const wavBuffer = Buffer.from(base64Audio, 'base64');
+      if (wavBuffer.length === 0) return null;
+
+      return {
+        buffer: wavBuffer,
+        mimeType: part?.inlineData?.mimeType || 'audio/wav',
+        engine: 'gemini',
+      };
     });
 
-    const part = response.candidates?.[0]?.content?.parts?.[0];
-    const base64Audio = part?.inlineData?.data;
-    if (!base64Audio) return null;
+  const now = Date.now();
+  const candidates: Array<'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts'> = [];
+  if (now >= flashCooldownUntil) candidates.push('gemini-3.8-flash-tts');
+  if (now >= liteCooldownUntil) candidates.push('gemini-3.8-flash-lite-tts');
+  if (candidates.length === 0) {
+    candidates.push('gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts');
+  }
 
-    const wavBuffer = Buffer.from(base64Audio, 'base64');
-    if (wavBuffer.length === 0) return null;
-
-    return {
-      buffer: wavBuffer,
-      mimeType: part?.inlineData?.mimeType || 'audio/wav',
-      engine: 'gemini',
-    };
-  };
-
-  const models: Array<'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts'> =
-    Date.now() < liteCooldownUntil
-      ? ['gemini-3.8-flash-tts']
-      : ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
-
-  for (const modelName of models) {
-    try {
-      const audio = await callGemini(modelName);
-      if (audio) return { audio };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
-      if (isRateLimit && modelName === 'gemini-3.8-flash-lite-tts') {
-        liteCooldownUntil = Date.now() + 5 * 60 * 1000;
-        continue;
+  let lastReason = 'gemini-tts-unavailable';
+  for (const modelName of candidates) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const audio = await callGemini(modelName);
+        if (audio) return { audio };
+        lastReason = `${modelName}-empty-audio`;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+        if (isRateLimit) {
+          lastReason = `${modelName}-rate-limited`;
+          if (modelName === 'gemini-3.8-flash-tts') {
+            flashCooldownUntil = Date.now() + 30 * 1000;
+          } else {
+            liteCooldownUntil = Date.now() + 30 * 1000;
+          }
+          break;
+        }
+        lastReason = `${modelName}-error`;
+        console.warn(`Gemini TTS (${modelName}, attempt ${attempt + 1}) unavailable:`, msg);
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 350));
+        }
       }
-      console.warn(`Gemini TTS (${modelName}) unavailable:`, msg);
     }
   }
 
-  return { audio: null, errorReason: 'gemini-tts-unavailable' };
+  return { audio: null, errorReason: lastReason };
 }
 
 /**
@@ -223,7 +262,8 @@ function sendAudioResponse(
   res: Response,
   audioBuffer: Buffer,
   mimeType: string,
-  engine: 'gemini' | 'fallback' = 'gemini'
+  engine: 'gemini' | 'fallback' = 'gemini',
+  reason?: string
 ) {
   const totalLength = audioBuffer.length;
   const rangeHeader = req.headers.range;
@@ -231,6 +271,9 @@ function sendAudioResponse(
   res.setHeader('Content-Type', mimeType);
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('X-TTS-Engine', engine);
+  if (reason) {
+    res.setHeader('X-TTS-Reason', reason);
+  }
   res.setHeader(
     'Cache-Control',
     engine === 'gemini' ? 'public, max-age=86400' : 'no-store'
@@ -272,7 +315,7 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     .trim();
 
   // Check Gemini in-memory & disk cache
-  const cacheKey = cleanText.toLowerCase();
+  const cacheKey = `${TTS_CACHE_VERSION}:${cleanText.toLowerCase()}`;
   if (ttsCache.has(cacheKey)) {
     const cached = ttsCache.get(cacheKey)!;
     return sendAudioResponse(req, res, cached.buffer, cached.mimeType, cached.engine);
@@ -315,10 +358,11 @@ app.get('/api/tts', async (req: Request, res: Response) => {
             buffer: Buffer.concat(audioBuffers),
             mimeType: 'audio/mpeg',
             engine: 'fallback',
+            reason: geminiAttempt.errorReason,
           };
         } else {
           // Cache only high-quality Gemini TTS audio in memory & disk
-          if (ttsCache.size > 300) {
+          if (ttsCache.size > 800) {
             const firstKey = ttsCache.keys().next().value;
             if (firstKey) ttsCache.delete(firstKey);
           }
@@ -339,7 +383,7 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     }
 
     const result = await generationPromise;
-    return sendAudioResponse(req, res, result.buffer, result.mimeType, result.engine);
+    return sendAudioResponse(req, res, result.buffer, result.mimeType, result.engine, result.reason);
   } catch (error) {
     console.error('Error generating Arabic speech:', error);
     return res.status(500).json({ error: 'Failed to generate speech audio' });

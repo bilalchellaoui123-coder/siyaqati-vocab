@@ -20,7 +20,7 @@ export function numberToArabicWord(n: number): string {
     case 1:
       return 'واحد';
     case 2:
-      return 'اثنان';
+      return 'جوج';
     case 3:
       return 'ثلاثة';
     case 4:
@@ -142,32 +142,31 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/(^|\s)فالاستخدام(?=$|\s|[،.])/g, '$1في الاستخدام')
     .replace(/(^|\s)فالاستعمال(?=$|\s|[،.])/g, '$1في استعمال')
     .replace(/(^|\s)فالإستعمال(?=$|\s|[،.])/g, '$1في استعمال')
-    .replace(/(^|\s)فهاد\s+ملتقى\s+الطرق(?=$|\s|[،.])/g, '$1في ملتقى الطرق هذا')
-    .replace(/(^|\s)فهاد الحالة(?=$|\s|[،.])/g, '$1في هذه الحالة')
-    .replace(/(^|\s)فهاد الشارع(?=$|\s|[،.])/g, '$1في هذا الشارع')
-    .replace(/(^|\s)فهاد المكان(?=$|\s|[،.])/g, '$1في هذا المكان')
-    .replace(/(^|\s)فهاد(?=$|\s|[،.])/g, '$1في هذا')
+    .replace(/(^|\s)فهاد\s+ملتقى\s+الطرق(?=$|\s|[،.])/g, '$1في هاد ملتقى الطرق')
+    .replace(/(^|\s)فهاد الحالة(?=$|\s|[،.])/g, '$1في هاد الحالة')
+    .replace(/(^|\s)فهاد الشارع(?=$|\s|[،.])/g, '$1في هاد الشارع')
+    .replace(/(^|\s)فهاد المكان(?=$|\s|[،.])/g, '$1في هاد المكان')
+    .replace(/(^|\s)فهاد(?=$|\s|[،.])/g, '$1في هاد')
     .replace(/(^|\s)بضواء(?=$|\s|[،.])/g, '$1بأضواء')
     .replace(/(^|\s)بضواو(?=$|\s|[،.])/g, '$1بأضواء')
     .replace(/(^|\s)بالصوار ديال الضبابة(?=$|\s|[،.])/g, '$1بأضواء الضباب')
     .replace(/(^|\s)ضواو(?=$|\s|[،.])/g, '$1أضواء')
 
-    // Smooth Moroccan demonstratives & colloquial spellings for crisp pronunciation
-    .replace(/(^|\s)بين\s+هاد\s+جوج\s+السيارات(?=$|\s|[،.])/g, '$1بين هاتين السيارتين')
-    .replace(/(^|\s)هاد\s+(العلامة|العلامات|اللوحة|الحالة|المحطة|القاعدة|المركبة|الدراجة|الأرمات)/g, '$1هذه $2')
-    .replace(/(^|\s)هاد\s+(الشارع|المكان|الشخص|الوزن|السائق|مستعمل|التقاطع|التشوير|المنعرج)/g, '$1هذا $2')
+    // Smooth Moroccan Darija spellings while keeping authentic Moroccan dialect natural
+    .replace(/(^|\s)بين\s+هاد\s+جوج\s+السيارات(?=$|\s|[،.])/g, '$1بين هاد جوج سيارات')
     .replace(/(^|\s)ألي قدامي(?=$|\s|[،.])/g, '$1اللي قدامي')
     .replace(/(^|[\s،.(])للي(?=$|[\s،.)])/g, '$1اللي')
     .replace(/(^|\s)لي\s+(على|في)(?=$|\s)/g, '$1اللي $2')
     .replace(/(^|\s)يوحدهم(?=$|\s|[،.])/g, '$1بوحدهم')
     .replace(/(^|\s)تاحد ما كاين(?=$|\s|[،.])/g, '$1حتى واحد ما كاين')
+    .replace(/(^|\s)مللي كايكون(?=$|\s|[،.])/g, '$1ملي كيكون')
     .replace(/(^|\s)مللي كاتزيد(?=$|\s|[،.])/g, '$1ملي كتزيد')
     .replace(/(^|\s)ماكيتغيرش(?=$|\s|[،.])/g, '$1ما كيتغيرش')
     .replace(/(^|\s)مايمكنش لي(?=$|\s|[،.])/g, '$1ما يمكنش لي')
     .replace(/(^|\s)بلا مانوقف(?=$|\s|[،.])/g, '$1بلا ما نوقف')
     .replace(/(^|\s)بعد مانوقف(?=$|\s|[،.])/g, '$1بعد ما نوقف')
-    .replace(/(^|\s)إلا مرتكبتش حتا شي مخالفة(?=$|\s|[،.])/g, '$1إذا ما ارتكبتش حتى شي مخالفة')
-    .replace(/(^|\s)إلى\s+(ما|بان|فقدت|كان)/g, '$1إذا $2')
+    .replace(/(^|\s)إلا مرتكبتش حتا شي مخالفة(?=$|\s|[،.])/g, '$1إلّا ما ارتكبتش حتى شي مخالفة')
+    .replace(/(^|\s)إلى\s+(ما|بان|فقدت|كان)/g, '$1إلّا $2')
     .replace(/(^|\s)وجنب ديال السيارة(?=$|\s|[،.])/g, '$1وجنب السيارة')
     .replace(/(^|\s)لون ديالها(?=$|\s|[،.])/g, '$1اللون ديالها')
     .replace(/(^|\s)نص\s+دورة(?=$|\s|[،.])/g, '$1نصف دورة')
@@ -187,6 +186,7 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     // Natural spoken phrasing for decimals, quantities, and fractions (with safe leading boundaries)
     .replace(/(^|[\s،.(])0[.,]5\s*متر/g, '$1نصف متر')
     .replace(/(^|[\s،.(])3[.,]5\s*طن/g, '$1ثلاثة طن ونصف')
+    .replace(/(^|[\s،.(])0\.(\d+)/g, '$1صفر فاصلة $2')
     .replace(/(\d+)\.(\d+)/g, '$1 فاصلة $2')
     .replace(/(^|[\s،.(])13\s+نقطة(?=$|[\s،.)])/g, '$1ثلاث عشرة نقطة')
     .replace(/(^|[\s،.(])1\s+نقطة(?=$|[\s،.)])/g, '$1نقطة واحدة')
@@ -332,7 +332,7 @@ export function buildValidationFeedbackSegments(
   }
 
   const answerText = isCorrect
-    ? `إجابة صحيحة! الجواب الصحيح هو: ${correctSummary}.`
+    ? `مزيان، إجابة صحيحة! الجواب الصحيح هو: ${correctSummary}.`
     : `إجابة غير صحيحة. الجواب الصحيح هو: ${correctSummary}.`;
 
   const cleanExplanation = cleanArabicForSpeech(question.explanation, {
@@ -355,12 +355,7 @@ export function buildValidationFeedbackSegments(
 
   return [
     {
-      text: answerText,
-      optionId: null,
-      pauseAfterMs: 320,
-    },
-    {
-      text: `السبب: ${explanationSentence}`,
+      text: `${answerText} السبب: ${explanationSentence}`,
       optionId: null,
       pauseAfterMs: 0,
     },

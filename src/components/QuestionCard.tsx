@@ -123,30 +123,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   }, [question.id, autoPlayAudio, hasValidated]);
 
-  // Pre-warm predicted validation answer & explanation immediately once an option is selected
+  // Pre-warm predicted validation answer & explanation after user settles on an option
   useEffect(() => {
     if (hasValidated || selectedAnswers.length === 0) return;
     const timer = setTimeout(() => {
       const predictedCorrect = evaluateAnswer(selectedAnswers, question.correctAnswers);
       const predictedSegments = buildValidationFeedbackSegments(question, predictedCorrect);
       soundManager.prefetchTexts(predictedSegments.map((s) => s.text));
-    }, 60);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [question.id, hasValidated, selectedAnswers]);
-
-  // Pre-warm next question's audio while user reviews current answer
-  useEffect(() => {
-    if (!hasValidated || !nextQuestion) return;
-    const timer = setTimeout(() => {
-      const nextSegments = buildQuestionSpeechSegments(nextQuestion);
-      if (nextSegments[0]) {
-        soundManager.prefetchTexts([nextSegments[0].text]);
-      }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [hasValidated, nextQuestion?.id]);
 
   const handleSpeakSingleOption = (optId: number, optText: string, e: React.MouseEvent) => {
     e.stopPropagation();

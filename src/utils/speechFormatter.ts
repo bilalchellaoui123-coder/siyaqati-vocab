@@ -39,8 +39,8 @@ function stripUnspokenParentheticals(text: string): string {
     .replace(/\(([^)]*)\)/g, (_match, inner: string) => {
       const trimmed = inner.trim();
 
-      // Remove pure numeric parentheticals like "(1)", "(2)", "(4)"
-      if (/^\d+$/.test(trimmed)) {
+      // Remove pure numeric or symbol parentheticals like "(1)", "(2)", "(+ / -)"
+      if (/^\d+$/.test(trimmed) || /^[+\-/\s]+$/.test(trimmed)) {
         return '';
       }
 
@@ -54,10 +54,10 @@ function stripUnspokenParentheticals(text: string): string {
         return `، أي ${trimmed}`;
       }
 
-      // Keep "(70m احترموا المسافة القانونية)" clean as Arabic
-      if (trimmed.includes('احترموا')) {
+      // Keep "(70m احترموا المسافة القانونية)" or "(1000m)" clean as Arabic
+      if (trimmed.includes('احترموا') || /^\d+(?:[.,]\d+)?\s*m$/i.test(trimmed)) {
         const cleaned = trimmed
-          .replace(/(\d+(?:[.,]\d+)?)\s*m\b/gi, '$1 متراً')
+          .replace(/(\d+(?:[.,]\d+)?)\s*m\b/gi, '$1 متر')
           .replace(/[A-Za-zÀ-ÿ]+/g, '')
           .trim();
         return cleaned ? `، ${cleaned}،` : '';
@@ -104,9 +104,34 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/(^|\s)فالمنعرج(?=$|\s|[،.])/g, '$1في المنعرج')
     .replace(/(^|\s)فالخلف(?=$|\s|[،.])/g, '$1في الخلف')
     .replace(/(^|\s)فالساعة(?=$|\s|[،.])/g, '$1في الساعة')
+    .replace(/(^|\s)فالسرعة(?=$|\s|[،.])/g, '$1في السرعة')
     .replace(/(^|\s)فزمن(?=$|\s|[،.])/g, '$1في زمن')
+    .replace(/(^|\s)فالزمن(?=$|\s|[،.])/g, '$1في الزمن')
     .replace(/(^|\s)فالفترة(?=$|\s|[،.])/g, '$1في الفترة')
     .replace(/(^|\s)فالسير(?=$|\s|[،.])/g, '$1في السير')
+    .replace(/(^|\s)فحركة(?=$|\s|[،.])/g, '$1في حركة')
+    .replace(/(^|\s)فحالة(?=$|\s|[،.])/g, '$1في حالة')
+    .replace(/(^|\s)فالحمولة(?=$|\s|[،.])/g, '$1في الحمولة')
+    .replace(/(^|\s)فمسار(?=$|\s|[،.])/g, '$1في مسار')
+    .replace(/(^|\s)فالمسلك(?=$|\s|[،.])/g, '$1في المسلك')
+    .replace(/(^|\s)فالقاعدة(?=$|\s|[،.])/g, '$1في القاعدة')
+    .replace(/(^|\s)فرد\s+الفعل(?=$|\s|[،.])/g, '$1في رد الفعل')
+    .replace(/(^|\s)فسوء(?=$|\s|[،.])/g, '$1في سوء')
+    .replace(/(^|\s)فوضعية(?=$|\s|[،.])/g, '$1في وضعية')
+    .replace(/(^|\s)فالأمر(?=$|\s|[،.])/g, '$1في الأمر')
+    .replace(/(^|\s)فاللتر(?=$|\s|[،.])/g, '$1في اللتر')
+    .replace(/(^|\s)فالخطر(?=$|\s|[،.])/g, '$1في الخطر')
+    .replace(/(^|\s)فالضو(?=$|\s|[،.])/g, '$1في الضوء')
+    .replace(/(^|\s)فالوسط(?=$|\s|[،.])/g, '$1في الوسط')
+    .replace(/(^|\s)فالعينين(?=$|\s|[،.])/g, '$1في العينين')
+    .replace(/(^|\s)فقوة(?=$|\s|[،.])/g, '$1في قوة')
+    .replace(/(^|\s)فالمركبة(?=$|\s|[،.])/g, '$1في المركبة')
+    .replace(/(^|\s)فجميع(?=$|\s|[،.])/g, '$1في جميع')
+    .replace(/(^|\s)فبعض(?=$|\s|[،.])/g, '$1في بعض')
+    .replace(/(^|\s)فالأمام(?=$|\s|[،.])/g, '$1في الأمام')
+    .replace(/(^|\s)فجنب(?=$|\s|[،.])/g, '$1في جنب')
+    .replace(/(^|\s)فالحين(?=$|\s|[،.])/g, '$1في الحين')
+    .replace(/(^|\s)ففقدان(?=$|\s|[،.])/g, '$1في فقدان')
     .replace(/(^|\s)فطريق(?=$|\s|[،.])/g, '$1في طريق')
     .replace(/(^|\s)فالطريق(?=$|\s|[،.])/g, '$1في الطريق')
     .replace(/(^|\s)فالتربية(?=$|\s|[،.])/g, '$1في التربية')
@@ -117,6 +142,7 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/(^|\s)فالاستخدام(?=$|\s|[،.])/g, '$1في الاستخدام')
     .replace(/(^|\s)فالاستعمال(?=$|\s|[،.])/g, '$1في استعمال')
     .replace(/(^|\s)فالإستعمال(?=$|\s|[،.])/g, '$1في استعمال')
+    .replace(/(^|\s)فهاد\s+ملتقى\s+الطرق(?=$|\s|[،.])/g, '$1في ملتقى الطرق هذا')
     .replace(/(^|\s)فهاد الحالة(?=$|\s|[،.])/g, '$1في هذه الحالة')
     .replace(/(^|\s)فهاد الشارع(?=$|\s|[،.])/g, '$1في هذا الشارع')
     .replace(/(^|\s)فهاد المكان(?=$|\s|[،.])/g, '$1في هذا المكان')
@@ -127,9 +153,12 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/(^|\s)ضواو(?=$|\s|[،.])/g, '$1أضواء')
 
     // Smooth Moroccan demonstratives & colloquial spellings for crisp pronunciation
-    .replace(/(^|\s)هاد\s+(العلامة|العلامات|اللوحة|الحالة|المحطة|القاعدة|المركبة)/g, '$1هذه $2')
-    .replace(/(^|\s)هاد\s+(الشارع|المكان|الشخص|الوزن|السائق|مستعمل)/g, '$1هذا $2')
+    .replace(/(^|\s)بين\s+هاد\s+جوج\s+السيارات(?=$|\s|[،.])/g, '$1بين هاتين السيارتين')
+    .replace(/(^|\s)هاد\s+(العلامة|العلامات|اللوحة|الحالة|المحطة|القاعدة|المركبة|الدراجة|الأرمات)/g, '$1هذه $2')
+    .replace(/(^|\s)هاد\s+(الشارع|المكان|الشخص|الوزن|السائق|مستعمل|التقاطع|التشوير|المنعرج)/g, '$1هذا $2')
     .replace(/(^|\s)ألي قدامي(?=$|\s|[،.])/g, '$1اللي قدامي')
+    .replace(/(^|[\s،.(])للي(?=$|[\s،.)])/g, '$1اللي')
+    .replace(/(^|\s)لي\s+(على|في)(?=$|\s)/g, '$1اللي $2')
     .replace(/(^|\s)يوحدهم(?=$|\s|[،.])/g, '$1بوحدهم')
     .replace(/(^|\s)تاحد ما كاين(?=$|\s|[،.])/g, '$1حتى واحد ما كاين')
     .replace(/(^|\s)مللي كاتزيد(?=$|\s|[،.])/g, '$1ملي كتزيد')
@@ -141,6 +170,7 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/(^|\s)إلى\s+(ما|بان|فقدت|كان)/g, '$1إذا $2')
     .replace(/(^|\s)وجنب ديال السيارة(?=$|\s|[،.])/g, '$1وجنب السيارة')
     .replace(/(^|\s)لون ديالها(?=$|\s|[،.])/g, '$1اللون ديالها')
+    .replace(/(^|\s)نص\s+دورة(?=$|\s|[،.])/g, '$1نصف دورة')
 
     // Expand speed, distance, weight, and time abbreviations (Unicode-safe boundaries)
     .replace(/كلم\s*\/\s*س/g, 'كيلومتر في الساعة')
@@ -148,27 +178,29 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/كلم في الساعة/g, 'كيلومتر في الساعة')
     .replace(/(^|[\s،.(])كلم(?=$|[\s،.)])/g, '$1كيلومتر')
     .replace(/(^|[\s،.(])كلغ(?=$|[\s،.)])/g, '$1كيلوغرام')
+    .replace(/(^|[\s،.(])مترو(?=$|[\s،.)])/g, '$1متر')
     .replace(/(\d+(?:[.,]\d+)?)\s*m(?![A-Za-z])/gi, '$1 متر')
     .replace(/(\d+(?:[.,]\d+)?)\s*cm(?![A-Za-z])/gi, '$1 سنتيمتر')
     .replace(/(\d+(?:[.,]\d+)?)\s*km(?![A-Za-z])/gi, '$1 كيلومتر')
     .replace(/(\d+(?:[.,]\d+)?)\s*s(?![A-Za-z])/gi, '$1 ثانية')
 
-    // Natural spoken phrasing for decimals, quantities, and fractions
-    .replace(/0[.,]5\s*متر/g, 'نصف متر')
-    .replace(/3[.,]5\s*طن/g, 'ثلاثة طن ونصف')
+    // Natural spoken phrasing for decimals, quantities, and fractions (with safe leading boundaries)
+    .replace(/(^|[\s،.(])0[.,]5\s*متر/g, '$1نصف متر')
+    .replace(/(^|[\s،.(])3[.,]5\s*طن/g, '$1ثلاثة طن ونصف')
     .replace(/(\d+)\.(\d+)/g, '$1 فاصلة $2')
-    .replace(/1\s+نقطة/g, 'نقطة واحدة')
-    .replace(/(?:2|جوج)\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)/g, 'نقطتين')
-    .replace(/3\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)/g, 'ثلاث نقط')
-    .replace(/4\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)/g, 'أربع نقط')
-    .replace(/6\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)/g, 'ست نقط')
-    .replace(/2\s+ديال\s+الثواني/g, 'ثانيتين')
-    .replace(/3\s+ديال\s+الثواني/g, 'ثلاث ثوانٍ')
-    .replace(/3\s+سنين/g, 'ثلاث سنين')
-    .replace(/5\s+سنين/g, 'خمس سنين')
-    .replace(/3\s+أشهر/g, 'ثلاثة أشهر')
-    .replace(/8\s+ديال\s+الأشخاص/g, 'ثمانية أشخاص')
-    .replace(/زوج\s+ديال\s+الدورات/g, 'دورتين')
+    .replace(/(^|[\s،.(])13\s+نقطة(?=$|[\s،.)])/g, '$1ثلاث عشرة نقطة')
+    .replace(/(^|[\s،.(])1\s+نقطة(?=$|[\s،.)])/g, '$1نقطة واحدة')
+    .replace(/(^|[\s،.(])(?:2|جوج)\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)(?=$|[\s،.)])/g, '$1نقطتين')
+    .replace(/(^|[\s،.(])3\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)(?=$|[\s،.)])/g, '$1ثلاث نقط')
+    .replace(/(^|[\s،.(])4\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)(?=$|[\s،.)])/g, '$1أربع نقط')
+    .replace(/(^|[\s،.(])6\s+(?:ديال\s+)?(?:النقط|نقط|نقاط)(?=$|[\s،.)])/g, '$1ست نقط')
+    .replace(/(^|[\s،.(])2\s+ديال\s+الثواني(?=$|[\s،.)])/g, '$1ثانيتين')
+    .replace(/(^|[\s،.(])3\s+ديال\s+الثواني(?=$|[\s،.)])/g, '$1ثلاث ثوانٍ')
+    .replace(/(^|[\s،.(])3\s+سنين(?=$|[\s،.)])/g, '$1ثلاث سنين')
+    .replace(/(^|[\s،.(])5\s+سنين(?=$|[\s،.)])/g, '$1خمس سنين')
+    .replace(/(^|[\s،.(])3\s+أشهر(?=$|[\s،.)])/g, '$1ثلاثة أشهر')
+    .replace(/(^|[\s،.(])8\s+ديال\s+الأشخاص(?=$|[\s،.)])/g, '$1ثمانية أشخاص')
+    .replace(/(^|[\s،.(])زوج\s+ديال\s+الدورات(?=$|[\s،.)])/g, '$1دورتين')
 
     // Replace math arrows, multiplication, and equations
     .replace(/\s*->\s*/g, '، يعني ')
@@ -180,8 +212,11 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
     .replace(/\bABS\b/g, 'نظام منع انغلاق العجلات')
     .replace(/بصليب\s*X\s*/gi, 'بعلامة ضرب ')
     .replace(/\bX\b/g, 'إكس')
-    .replace(/(?:من\s+)?صنف\s+ب(?=$|[\s،.])/g, 'من صنف باء')
-    .replace(/الصنف\s+ج(?=$|[\s،.])/g, 'الصنف جيم')
+    .replace(/(^|\s)أ1\s+أو\s+أ(?=$|[\s،.])/g, '$1ألف واحد أو ألف')
+    .replace(/(^|\s)الصنف\s+ب(?=$|[\s،.])/g, '$1الصنف باء')
+    .replace(/(^|\s)من\s+صنف\s+ب(?=$|[\s،.])/g, '$1من صنف باء')
+    .replace(/(^|\s)صنف\s+ب(?=$|[\s،.])/g, '$1صنف باء')
+    .replace(/(^|\s)الصنف\s+ج(?=$|[\s،.])/g, '$1الصنف جيم')
 
     // Clean slashes and punctuation spacing
     .replace(/\s*\/\s*/g, '، أو ')
@@ -217,14 +252,17 @@ function stripInlineChoiceHints(questionText: string): string {
 export function buildQuestionSpeechSegments(question: QuizQuestion): SpeechSegment[] {
   const basePrompt = stripInlineChoiceHints(question.questionText);
 
-  let questionLine = cleanArabicForSpeech(basePrompt, { stripFrenchParens: true });
+  let questionLine = cleanArabicForSpeech(basePrompt, { stripFrenchParens: true })
+    .replace(/[.:،]+$/, '')
+    .trim();
   if (question.subQuestionText) {
-    const sub = cleanArabicForSpeech(question.subQuestionText, { stripFrenchParens: true });
+    const sub = cleanArabicForSpeech(question.subQuestionText, { stripFrenchParens: true })
+      .replace(/[.:،]+$/, '')
+      .trim();
     if (sub) {
-      questionLine = `${questionLine}، ${sub}`;
+      questionLine = questionLine ? `${questionLine}، ${sub}` : sub;
     }
   }
-  questionLine = questionLine.replace(/[.:،]+$/, '').trim();
   if (questionLine && !/[؟!]$/.test(questionLine)) {
     questionLine += ':';
   }

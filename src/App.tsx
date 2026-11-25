@@ -97,9 +97,9 @@ export default function App() {
       pool = filterQuestions(QUESTIONS_DATABASE, { serie: serieFilter });
     }
 
-    // Shuffle slightly for exam mode or take top 40/available
+    // Shuffle for exam mode and take 40 questions matching the official Moroccan exam
     if (mode === 'exam') {
-      pool = [...pool].sort(() => 0.5 - Math.random());
+      pool = [...pool].sort(() => 0.5 - Math.random()).slice(0, 40);
     }
 
     setActiveQuestions(pool);

@@ -10,7 +10,11 @@ import { RousseauConsole } from './RousseauConsole';
 import { VOCABULARY_LIST } from '../data/vocabulary';
 import { Volume2, BookOpen, CheckCircle2, XCircle, Bookmark, Star, HelpCircle } from 'lucide-react';
 import { soundManager, speakArabic, speakArabicSegments } from '../utils/sound';
-import { buildQuestionSpeechSegments, buildSingleOptionSpeech } from '../utils/speechFormatter';
+import {
+  buildQuestionSpeechSegments,
+  buildSingleOptionSpeech,
+  buildValidationFeedbackSegments,
+} from '../utils/speechFormatter';
 
 interface QuestionCardProps {
   question: QuizQuestion;
@@ -112,6 +116,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     soundManager.stopSpeaking();
     setPlayingOptionId(optId);
     speakArabic(buildSingleOptionSpeech(optId, optText));
+  };
+
+  const handleSpeakValidationFeedback = () => {
+    if (isPlayingAudio) {
+      soundManager.stopSpeaking();
+    } else {
+      const segments = buildValidationFeedbackSegments(question, Boolean(isCorrect));
+      speakArabicSegments(segments, (activeOptId) => {
+        setPlayingOptionId(activeOptId);
+      });
+    }
   };
 
   const toggleAutoPlay = () => {
@@ -370,7 +385,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   : 'bg-rose-950/40 border-rose-500/40 text-rose-100'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-black text-sm flex items-center gap-2">
                   {isCorrect ? (
                     <>
@@ -384,13 +399,28 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     </>
                   )}
                 </span>
-                <button
-                  onClick={onOpenDetailedModal}
-                  className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 underline underline-offset-4"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  عرض الشرح الكامل والمصطلحات
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSpeakValidationFeedback}
+                    className={`min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition active:scale-95 ${
+                      isPlayingAudio
+                        ? 'bg-amber-500 text-slate-950 border-amber-300'
+                        : 'bg-slate-900/70 hover:bg-slate-800 text-amber-300 border-amber-500/30'
+                    }`}
+                    title={isPlayingAudio ? 'إيقاف الصوت' : 'استمع للجواب الصحيح والسبب'}
+                  >
+                    <Volume2 className={`w-3.5 h-3.5 shrink-0 ${isPlayingAudio ? 'animate-pulse' : ''}`} />
+                    <span>{isPlayingAudio ? 'إيقاف' : 'استمع للجواب والسبب'}</span>
+                  </button>
+                  <button
+                    onClick={onOpenDetailedModal}
+                    className="min-h-[36px] text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 underline underline-offset-4"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    عرض الشرح الكامل والمصطلحات
+                  </button>
+                </div>
               </div>
               <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
                 {question.explanation}

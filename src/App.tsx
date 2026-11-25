@@ -27,7 +27,8 @@ import {
   updateUserProgress,
   filterQuestions,
 } from './utils/quizEngine';
-import { soundManager } from './utils/sound';
+import { soundManager, speakArabicSegments } from './utils/sound';
+import { buildValidationFeedbackSegments } from './utils/speechFormatter';
 import { BookOpen, GraduationCap, AlertOctagon, RotateCcw, Filter, Sparkles, CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEY = 'siyaqati_progress_v2';
@@ -145,12 +146,16 @@ export default function App() {
   const handleValidate = () => {
     if (!currentQuestion || selectedAnswers.length === 0) return;
 
+    soundManager.unlockAudioSync();
     const isCorrect = evaluateAnswer(selectedAnswers, currentQuestion.correctAnswers);
     if (isCorrect) {
       soundManager.playCorrect();
     } else {
       soundManager.playWrong();
     }
+
+    const feedbackSegments = buildValidationFeedbackSegments(currentQuestion, isCorrect);
+    void speakArabicSegments(feedbackSegments, undefined, 260);
 
     const answerRecord: UserAnswer = {
       questionId: currentQuestion.id,

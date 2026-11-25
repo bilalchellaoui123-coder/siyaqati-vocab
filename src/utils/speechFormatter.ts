@@ -26,17 +26,42 @@ export function numberToArabicWord(n: number): string {
   }
 }
 
+export interface CleanSpeechOptions {
+  stripFrenchParens?: boolean;
+}
+
+/**
+ * Strip French/Latin terms inside parentheses while preserving any Arabic meaning inside the same parentheses.
+ */
+function stripLatinParentheticals(text: string): string {
+  return text
+    .replace(/\(([^)]*)\)/g, (_match, inner: string) => {
+      // Remove Latin words, apostrophes, hyphens, and short unit codes like "1s" or "X" inside parentheses
+      const arabicOnly = inner
+        .replace(/\b\d+\s*s\b/gi, '')
+        .replace(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’\-\/\s]*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return arabicOnly ? `(${arabicOnly})` : '';
+    })
+    .replace(/\(\s*\)/g, '');
+}
+
 /**
  * Normalize Moroccan driving quiz text, abbreviations, and punctuation
  * so Arabic TTS engines read smoothly and fluently without stumbles.
  */
-export function cleanArabicForSpeech(raw: string): string {
+export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions): string {
   if (!raw) return '';
 
-  let text = raw
+  let text = options?.stripFrenchParens ? stripLatinParentheticals(raw) : raw;
+
+  text = text
     // Convert Moroccan Darija prepositions followed by tatweel/colon ("محددة فـ :" -> "محددة في:")
     .replace(/\bفـ+\s*[:：]?/g, 'في ')
     .replace(/\bبـ+\s*[:：]?/g, 'بِ ')
+    .replace(/\bكـ+\s*/g, 'مثل ')
     // Remove dangling tatweel elongation characters
     .replace(/\u0640+/g, '')
     // Expand common speed/distance/weight abbreviations
@@ -48,11 +73,16 @@ export function cleanArabicForSpeech(raw: string): string {
     .replace(/(\d+(?:[.,]\d+)?)\s*cm\b/gi, '$1 سنتيمتر')
     .replace(/(\d+(?:[.,]\d+)?)\s*km\b/gi, '$1 كيلومتر')
     .replace(/(\d+(?:[.,]\d+)?)\s*s\b/gi, '$1 ثانية')
-    // Replace common English terms embedded in Arabic prompts
+    // Replace math arrows and equations inside calculation explanations
+    .replace(/\s*->\s*/g, '، يعني ')
+    .replace(/(\d+)\s*[×xX]\s*(\d+)/g, '$1 ضرب $2')
+    .replace(/\s*=\s*/g, ' يساوي ')
+    // Replace common English/French terms embedded in Arabic prompts
     .replace(/\btubeless\b/gi, 'تيوبليس، أي بدون أنبوب داخلي')
     .replace(/\bABS\b/g, 'نظام منع انغلاق العجلات')
     .replace(/بصليب\s*X\s*/gi, 'بعلامة ضرب ')
     .replace(/\bX\b/g, 'إكس')
+    .replace(/من صنف\s*"?\s*ب\s*"?/g, 'من صنف باء')
     // Clean decimal dots inside numbers ("3.5" -> "3 فاصلة 5")
     .replace(/(\d+)\.(\d+)/g, '$1 فاصلة $2')
     // Normalize quotes & slashes
@@ -61,6 +91,8 @@ export function cleanArabicForSpeech(raw: string): string {
     // Replace dangling colons at the end of questions with a natural pause
     .replace(/\s*[:：]+\s*$/g, '.')
     .replace(/\s*[:：]+\s*/g, '، ')
+    // Remove stray spacing before punctuation
+    .replace(/\s+([.،؟!])/g, '$1')
     // Clean extra whitespace
     .replace(/\s+/g, ' ')
     .trim();
@@ -138,4 +170,69 @@ export function buildQuestionSpeechSegments(question: QuizQuestion): SpeechSegme
 export function buildSingleOptionSpeech(optId: number, optText: string): string {
   const cleanOpt = cleanArabicForSpeech(optText);
   return `رقم ${numberToArabicWord(optId)}، ${cleanOpt}.`;
+}
+
+/**
+ * Format the real/correct answer(s) into natural spoken Arabic,
+ * and if the user's answer was incorrect, follow with a spoken "why" explanation.
+ */
+export function buildValidationFeedbackSegments(
+  question: QuizQuestion,
+  isCorrect: boolean
+): SpeechSegment[] {
+  const correctOptions = question.options.filter((opt) =>
+    question.correctAnswers.includes(opt.id)
+  );
+
+  const optionPhrases =
+    correctOptions.length > 0
+      ? correctOptions.map((opt) => {
+          const cleanOpt = cleanArabicForSpeech(opt.text, { stripFrenchParens: true });
+          return `رقم ${numberToArabicWord(opt.id)}، ${cleanOpt}`;
+        })
+      : question.correctAnswers.map((id) => `رقم ${numberToArabicWord(id)}`);
+
+  let correctSummary = '';
+  if (optionPhrases.length === 1) {
+    correctSummary = optionPhrases[0];
+  } else if (optionPhrases.length > 1) {
+    const allExceptLast = optionPhrases.slice(0, -1).join('، ');
+    const last = optionPhrases[optionPhrases.length - 1];
+    correctSummary = `${allExceptLast}، و${last}`;
+  }
+
+  const answerText = isCorrect
+    ? `إجابة صحيحة! الجواب الصحيح هو: ${correctSummary}.`
+    : `إجابة غير صحيحة. الجواب الصحيح هو: ${correctSummary}.`;
+
+  const cleanExplanation = cleanArabicForSpeech(question.explanation, {
+    stripFrenchParens: true,
+  });
+
+  if (isCorrect || !cleanExplanation) {
+    return [
+      {
+        text: answerText,
+        optionId: null,
+        pauseAfterMs: 0,
+      },
+    ];
+  }
+
+  const explanationSentence = /[.?؟!]$/.test(cleanExplanation)
+    ? cleanExplanation
+    : `${cleanExplanation}.`;
+
+  return [
+    {
+      text: answerText,
+      optionId: null,
+      pauseAfterMs: 280,
+    },
+    {
+      text: `السبب: ${explanationSentence}`,
+      optionId: null,
+      pauseAfterMs: 0,
+    },
+  ];
 }

@@ -374,7 +374,8 @@ class SoundEffects {
    */
   public async speakSegments(
     segments: SpeechSegment[],
-    onStepChange?: (optionId: number | null) => void
+    onStepChange?: (optionId: number | null) => void,
+    leadDelayMs: number = 0
   ): Promise<void> {
     if (this.isMuted || segments.length === 0) return;
 
@@ -383,12 +384,22 @@ class SoundEffects {
     const requestId = ++this.speechRequestId;
     this.setSpeaking(true);
 
-    // Pre-fetch all segments in parallel (capped cleanly by browser connection pool)
+    // Pre-fetch all segments in parallel while optional chime/lead delay finishes
     const fetchPromises = segments.map((seg) =>
       this.fetchTtsAudioBuffer(seg.text, requestId)
     );
 
     try {
+      if (leadDelayMs > 0) {
+        await new Promise<void>((resolve) => {
+          this.pauseTimer = setTimeout(() => {
+            this.pauseTimer = null;
+            resolve();
+          }, leadDelayMs);
+        });
+        if (this.speechRequestId !== requestId) return;
+      }
+
       for (let i = 0; i < segments.length; i++) {
         if (this.speechRequestId !== requestId) return;
         const seg = segments[i];
@@ -750,7 +761,8 @@ export function speakArabic(text: string): Promise<void> {
 
 export function speakArabicSegments(
   segments: SpeechSegment[],
-  onStepChange?: (optionId: number | null) => void
+  onStepChange?: (optionId: number | null) => void,
+  leadDelayMs: number = 0
 ): Promise<void> {
-  return soundManager.speakSegments(segments, onStepChange);
+  return soundManager.speakSegments(segments, onStepChange, leadDelayMs);
 }

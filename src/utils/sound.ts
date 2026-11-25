@@ -463,8 +463,8 @@ class SoundEffects {
       }
     };
 
-    const workers = Array.from({ length: Math.min(2, queue.length) }, () => worker());
-    void Promise.all(workers);
+    // Sequential prefetch (concurrency 1) prevents rate-limit spikes so Gemini voice stays consistent
+    void worker();
   }
 
   private fetchSharedTtsBuffer(cleanText: string): Promise<CachedClientAudio | null> {
@@ -491,6 +491,7 @@ class SoundEffects {
         });
 
         const contentType = response.headers.get('content-type') || '';
+        const ttsEngine = response.headers.get('x-tts-engine') || '';
         if (!response.ok || !contentType.includes('audio')) {
           return null;
         }
@@ -505,11 +506,13 @@ class SoundEffects {
           mimeType: contentType.split(';')[0].trim() || 'audio/mpeg',
         };
 
-        if (this.audioBufferCache.size > 150) {
-          const firstKey = this.audioBufferCache.keys().next().value;
-          if (firstKey) this.audioBufferCache.delete(firstKey);
+        if (ttsEngine !== 'fallback') {
+          if (this.audioBufferCache.size > 150) {
+            const firstKey = this.audioBufferCache.keys().next().value;
+            if (firstKey) this.audioBufferCache.delete(firstKey);
+          }
+          this.audioBufferCache.set(cacheKey, entry);
         }
-        this.audioBufferCache.set(cacheKey, entry);
         return entry;
       } catch {
         return null;

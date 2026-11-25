@@ -21,6 +21,7 @@ app.use(express.json());
 interface CachedAudio {
   buffer: Buffer;
   mimeType: string;
+  engine: 'gemini' | 'fallback';
 }
 
 // In-memory cache for generated TTS audio to make repeat plays instantaneous
@@ -49,11 +50,11 @@ function getGeminiClient(): GoogleGenAI | null {
 /**
  * Primary high-fluency Arabic speech via Gemini 3.8 Flash Lite TTS
  */
-async function generateGeminiTts(text: string): Promise<CachedAudio | null> {
+async function generateGeminiTts(text: string): Promise<{ audio: CachedAudio | null; errorReason?: string }> {
   const ai = getGeminiClient();
-  if (!ai) return null;
+  if (!ai) return { audio: null, errorReason: 'missing-api-key' };
 
-  try {
+  const callGemini = async (): Promise<CachedAudio | null> => {
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash-lite-tts',
       contents: [
@@ -90,10 +91,31 @@ async function generateGeminiTts(text: string): Promise<CachedAudio | null> {
     return {
       buffer: wavBuffer,
       mimeType: part?.inlineData?.mimeType || 'audio/wav',
+      engine: 'gemini',
     };
-  } catch (err) {
-    console.warn('Gemini TTS unavailable, using fallback stream:', err instanceof Error ? err.message : err);
-    return null;
+  };
+
+  try {
+    const audio = await callGemini();
+    if (!audio) return { audio: null, errorReason: 'empty-audio' };
+    return { audio };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+    if (isRateLimit) {
+      // Brief backoff and single retry before falling back
+      await new Promise((r) => setTimeout(r, 700));
+      try {
+        const retryAudio = await callGemini();
+        if (retryAudio) return { audio: retryAudio };
+      } catch (retryErr: unknown) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        console.warn('Gemini TTS rate-limited after retry:', retryMsg);
+        return { audio: null, errorReason: retryMsg.slice(0, 120) };
+      }
+    }
+    console.warn('Gemini TTS unavailable, using fallback stream:', msg);
+    return { audio: null, errorReason: msg.slice(0, 120) };
   }
 }
 
@@ -179,13 +201,27 @@ async function fetchAudioChunk(chunkText: string): Promise<Buffer> {
   throw lastError || new Error('Failed to fetch TTS audio chunk');
 }
 
-function sendAudioResponse(req: Request, res: Response, audioBuffer: Buffer, mimeType: string) {
+function sendAudioResponse(
+  req: Request,
+  res: Response,
+  audioBuffer: Buffer,
+  mimeType: string,
+  engine: 'gemini' | 'fallback' = 'gemini',
+  fallbackReason?: string
+) {
   const totalLength = audioBuffer.length;
   const rangeHeader = req.headers.range;
 
   res.setHeader('Content-Type', mimeType);
   res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-TTS-Engine', engine);
+  if (fallbackReason) {
+    res.setHeader('X-TTS-Fallback-Reason', fallbackReason.replace(/[\r\n]/g, ' '));
+  }
+  res.setHeader(
+    'Cache-Control',
+    engine === 'gemini' ? 'public, max-age=86400' : 'no-store'
+  );
 
   if (rangeHeader) {
     const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
@@ -222,21 +258,26 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Check cache
+  // Check Gemini cache
   const cacheKey = cleanText.toLowerCase();
   if (ttsCache.has(cacheKey)) {
     const cached = ttsCache.get(cacheKey)!;
-    return sendAudioResponse(req, res, cached.buffer, cached.mimeType);
+    return sendAudioResponse(req, res, cached.buffer, cached.mimeType, cached.engine);
   }
 
   try {
     let generationPromise = inFlightTts.get(cacheKey);
+    let fallbackReason: string | undefined;
     if (!generationPromise) {
       generationPromise = (async () => {
         // 1. Try Gemini 3.8 Flash Lite TTS for ultra-fluent natural Arabic voice
-        let result = await generateGeminiTts(cleanText);
+        const geminiAttempt = await generateGeminiTts(cleanText);
+        let result = geminiAttempt.audio;
+        if (!result) {
+          fallbackReason = geminiAttempt.errorReason;
+        }
 
-        // 2. Fallback to standard Arabic TTS stream
+        // 2. Fallback to standard Arabic TTS stream (do NOT cache in ttsCache so Gemini can recover)
         if (!result) {
           const chunks = splitTextIntoChunks(cleanText, 195);
           const audioBuffers: Buffer[] = [];
@@ -250,15 +291,17 @@ app.get('/api/tts', async (req: Request, res: Response) => {
           result = {
             buffer: Buffer.concat(audioBuffers),
             mimeType: 'audio/mpeg',
+            engine: 'fallback',
           };
+        } else {
+          // Cache only high-quality Gemini TTS audio in memory (keep max 300 items)
+          if (ttsCache.size > 300) {
+            const firstKey = ttsCache.keys().next().value;
+            if (firstKey) ttsCache.delete(firstKey);
+          }
+          ttsCache.set(cacheKey, result);
         }
 
-        // Cache the result (keep max 300 items in memory)
-        if (ttsCache.size > 300) {
-          const firstKey = ttsCache.keys().next().value;
-          if (firstKey) ttsCache.delete(firstKey);
-        }
-        ttsCache.set(cacheKey, result);
         return result;
       })().finally(() => {
         inFlightTts.delete(cacheKey);
@@ -268,7 +311,14 @@ app.get('/api/tts', async (req: Request, res: Response) => {
     }
 
     const result = await generationPromise;
-    return sendAudioResponse(req, res, result.buffer, result.mimeType);
+    return sendAudioResponse(
+      req,
+      res,
+      result.buffer,
+      result.mimeType,
+      result.engine,
+      fallbackReason
+    );
   } catch (error) {
     console.error('Error generating Arabic speech:', error);
     return res.status(500).json({ error: 'Failed to generate speech audio' });

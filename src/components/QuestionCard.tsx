@@ -111,23 +111,33 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     };
   }, [question.id, autoPlayAudio]);
 
-  // Pre-warm validation answer & explanation audio in background so Valider speaks immediately
+  // Pre-warm unified question audio when a new question loads (if auto-play isn't already fetching it)
   useEffect(() => {
-    if (hasValidated) return;
-    const delay = autoPlayAudio ? 1100 : 250;
+    if (hasValidated || autoPlayAudio) return;
     const timer = setTimeout(() => {
-      const rightSegments = buildValidationFeedbackSegments(question, true);
-      const wrongSegments = buildValidationFeedbackSegments(question, false);
-      const questionSegments = !autoPlayAudio ? buildQuestionSpeechSegments(question) : [];
-      soundManager.prefetchTexts([
-        ...rightSegments.map((s) => s.text),
-        ...wrongSegments.map((s) => s.text),
-        ...(questionSegments[0] ? [questionSegments[0].text] : []),
-      ]);
-    }, delay);
+      const questionSegments = buildQuestionSpeechSegments(question);
+      if (questionSegments[0]) {
+        soundManager.prefetchTexts([questionSegments[0].text]);
+      }
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [question.id, autoPlayAudio, hasValidated]);
+
+  // Pre-warm validation answer & explanation audio once the user selects an option
+  useEffect(() => {
+    if (hasValidated || selectedAnswers.length === 0) return;
+    const timer = setTimeout(() => {
+      const rightSegments = buildValidationFeedbackSegments(question, true);
+      const wrongSegments = buildValidationFeedbackSegments(question, false);
+      soundManager.prefetchTexts([
+        ...rightSegments.map((s) => s.text),
+        ...wrongSegments.map((s) => s.text),
+      ]);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [question.id, hasValidated, selectedAnswers.length > 0]);
 
   const handleSpeakSingleOption = (optId: number, optText: string, e: React.MouseEvent) => {
     e.stopPropagation();

@@ -58,7 +58,8 @@ export function cleanArabicForSpeech(raw: string, options?: CleanSpeechOptions):
   let text = options?.stripFrenchParens ? stripLatinParentheticals(raw) : raw;
 
   text = text
-    // Convert Moroccan Darija prepositions followed by tatweel/colon ("محددة فـ :" -> "محددة في:")
+    // Convert Moroccan Darija prepositions ("محددة ف :" / "فـ :" -> "في")
+    .replace(/(^|\s)فـ*(?=\s*[:：]|$)/g, '$1في')
     .replace(/\bفـ+\s*[:：]?/g, 'في ')
     .replace(/\bبـ+\s*[:：]?/g, 'بِ ')
     .replace(/\bكـ+\s*/g, 'مثل ')
@@ -126,7 +127,8 @@ function stripInlineChoiceHints(questionText: string): string {
 }
 
 /**
- * Build fluent sequential speech segments for a question and its answer choices.
+ * Build one unified, fluent speech segment for a question and all its answer choices
+ * so Gemini TTS reads the question with the exact same continuous instructor voice as the response.
  */
 export function buildQuestionSpeechSegments(question: QuizQuestion): SpeechSegment[] {
   const hasPartOptions = question.options.some((o) => typeof o.part === 'number');
@@ -134,37 +136,39 @@ export function buildQuestionSpeechSegments(question: QuizQuestion): SpeechSegme
     ? stripInlineChoiceHints(question.questionText)
     : question.questionText;
 
-  let questionLine = cleanArabicForSpeech(basePrompt);
+  let questionLine = cleanArabicForSpeech(basePrompt, { stripFrenchParens: true });
   if (question.subQuestionText) {
-    const sub = cleanArabicForSpeech(question.subQuestionText);
+    const sub = cleanArabicForSpeech(question.subQuestionText, { stripFrenchParens: true });
     if (sub) {
       questionLine = `${questionLine}، ${sub}`;
     }
   }
-  if (questionLine && !/[.؟!]$/.test(questionLine)) {
-    questionLine += '.';
+  questionLine = questionLine.replace(/[.:،]+$/, '').trim();
+  if (questionLine && !/[؟!]$/.test(questionLine)) {
+    questionLine += ':';
   }
 
-  const segments: SpeechSegment[] = [];
-  if (questionLine) {
-    segments.push({
-      text: questionLine,
+  const optionsText = question.options
+    .map((opt) => {
+      const explicitPartText = opt.text.replace(/\s*[:：]\s*(نعم|لا)\s*$/, '، الجواب $1');
+      const cleanOpt = cleanArabicForSpeech(explicitPartText, { stripFrenchParens: true }).replace(
+        /[.]+$/,
+        ''
+      );
+      return `رقم ${numberToArabicWord(opt.id)}، ${cleanOpt}.`;
+    })
+    .join(' ');
+
+  const fullText = [questionLine, optionsText].filter(Boolean).join(' ').trim();
+  if (!fullText) return [];
+
+  return [
+    {
+      text: fullText,
       optionId: null,
-      pauseAfterMs: 320,
-    });
-  }
-
-  question.options.forEach((opt, idx) => {
-    const cleanOpt = cleanArabicForSpeech(opt.text);
-    const isLast = idx === question.options.length - 1;
-    segments.push({
-      text: `رقم ${numberToArabicWord(opt.id)}، ${cleanOpt}.`,
-      optionId: opt.id,
-      pauseAfterMs: isLast ? 0 : 220,
-    });
-  });
-
-  return segments;
+      pauseAfterMs: 0,
+    },
+  ];
 }
 
 export function buildSingleOptionSpeech(optId: number, optText: string): string {
